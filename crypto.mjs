@@ -15,7 +15,7 @@ async function keyFor(password, salt) {
   return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:ITERATIONS,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
 }
 export async function encrypt(payload,password) {
-  if (typeof password !== 'string' || password.length<16) throw new Error('Use a strong passphrase of at least 16 characters.');
+  if (typeof password !== 'string' || password.length<4) throw new Error('Use a passcode of at least 4 characters.');
   const salt=crypto.getRandomValues(new Uint8Array(16));
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:AAD,tagLength:128},await keyFor(password,salt),encoder.encode(JSON.stringify(payload)));
