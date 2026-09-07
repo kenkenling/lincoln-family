@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self' about:; base-uri 'none'; form-action 'none'">
+  <title>Lincoln Family</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <main id="welcome">
+    <section class="card">
+      <p class="eyebrow">Lincoln Family</p>
+      <h1>Welcome home.</h1>
+      <p class="intro">Our calendar. Our learning.<br>A little space to grow together.</p>
+      <form id="unlock-form">
+        <label for="passphrase">Family passphrase</label>
+        <input id="passphrase" type="password" autocomplete="current-password" required maxlength="512" aria-describedby="message">
+        <button id="unlock" type="submit">Open family calendar</button>
+      </form>
+      <p id="message" role="status" aria-live="polite"></p>
+      <p class="hint">Ask a family member for the passphrase. No account needed.</p>
+      <p class="hint">Your passphrase stays in this browser and is cleared after unlocking. You’ll enter it again when you reload.</p>
+      <noscript>Enable JavaScript to unlock the calendar on this device.</noscript>
+    </section>
+  </main>
+  <section id="family" hidden>
+    <header class="toolbar"><strong>Lincoln Family</strong><button id="lock" type="button">Lock calendar</button></header>
+    <iframe id="calendar" title="Lincoln’s family calendar" sandbox="allow-same-origin allow-downloads"></iframe>
+  </section>
+</body>
+</html>
