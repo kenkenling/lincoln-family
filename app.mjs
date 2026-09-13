@@ -7,61 +7,26 @@ const message=document.getElementById('message');
 const welcome=document.getElementById('welcome');
 const family=document.getElementById('family');
 const calendarFrame=document.getElementById('calendar');
-const bookFrame=document.getElementById('book-reader');
-const bookTitle=document.getElementById('book-title');
-const bookSubtitle=document.getElementById('book-subtitle');
-const bookEdition=document.getElementById('book-edition');
-const openBook=document.getElementById('book-open');
-const downloadBook=document.getElementById('book-download');
-const bookView=document.getElementById('book-view');
-const calendarView=document.getElementById('calendar-view');
-const viewButtons=[...document.querySelectorAll('[data-view]')];
 const lockButton=document.getElementById('lock');
 let blobURLs=[];
 let operation=0;
-
-function decodeBase64(text) {
-  const binary=atob(text);
-  const bytes=new Uint8Array(binary.length);
-  for(let index=0;index<binary.length;index++) bytes[index]=binary.charCodeAt(index);
-  return bytes;
-}
-
-function showView(name,{focus=false}={}) {
-  const bookSelected=name==='book';
-  bookView.hidden=!bookSelected;
-  calendarView.hidden=bookSelected;
-  for(const viewButton of viewButtons){
-    const selected=viewButton.dataset.view===name;
-    viewButton.setAttribute('aria-pressed',String(selected));
-  }
-  if(focus) (bookSelected ? bookTitle : calendarFrame).focus();
-}
 
 function lock() {
   operation++;
   calendarFrame.removeAttribute('srcdoc');
   calendarFrame.src='about:blank';
-  bookFrame.src='about:blank';
-  openBook.removeAttribute('href');
-  downloadBook.removeAttribute('href');
   for(const url of blobURLs) URL.revokeObjectURL(url);
   blobURLs=[];
   input.value='';
   message.textContent='';
   family.hidden=true;
   welcome.hidden=false;
-  showView('book');
   button.disabled=false;
-  button.textContent='Open family library';
+  button.textContent='Open calendar';
   input.focus();
 }
 
 function display(payload) {
-  const bookURL=URL.createObjectURL(new Blob(
-    [decodeBase64(payload.book.pdfBase64)],
-    {type:'application/pdf'},
-  ));
   const downloads={
     'lincoln-2026-2027.ics':URL.createObjectURL(new Blob(
       [payload.calendar.ics],
@@ -72,16 +37,7 @@ function display(payload) {
       {type:'text/markdown;charset=utf-8'},
     )),
   };
-  blobURLs=[bookURL,...Object.values(downloads)];
-
-  bookTitle.textContent=payload.book.title;
-  bookSubtitle.textContent=payload.book.subtitle;
-  bookEdition.textContent=payload.book.edition;
-  bookFrame.title=payload.book.title;
-  bookFrame.src=bookURL+'#view=FitH';
-  openBook.href=bookURL;
-  downloadBook.href=bookURL;
-  downloadBook.download=payload.book.filename;
+  blobURLs=Object.values(downloads);
 
   const doc=new DOMParser().parseFromString(payload.calendar.html,'text/html');
   // Only the reviewed, script-free calendar is shown; no plaintext resource fetches.
@@ -105,8 +61,7 @@ function display(payload) {
 
   welcome.hidden=true;
   family.hidden=false;
-  showView('book');
-  bookTitle.focus();
+  calendarFrame.focus();
 }
 
 form.addEventListener('submit',async event=>{
@@ -144,14 +99,10 @@ form.addEventListener('submit',async event=>{
     input.value='';
     if(token===operation){
       button.disabled=false;
-      button.textContent='Open family library';
+      button.textContent='Open calendar';
     }
   }
 });
-
-for(const viewButton of viewButtons){
-  viewButton.addEventListener('click',()=>showView(viewButton.dataset.view,{focus:true}));
-}
 
 lockButton.addEventListener('click',lock);
 calendarFrame.addEventListener('load',()=>{

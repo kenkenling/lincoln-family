@@ -52,9 +52,7 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   z-index:10;
 }
 .brand{justify-self:start}
-.view-switcher{display:flex;gap:6px;padding:4px;background:#f1f3ef;border-radius:11px}
-.view-button{padding:8px 16px;background:transparent;color:#45554e}
-.view-button[aria-pressed="true"]{background:#fff;color:var(--green);box-shadow:0 2px 8px #203a2b18}
+.toolbar-label{justify-self:center;color:var(--green);font-weight:700}
 #lock{justify-self:end;padding:9px 15px}
 .family-content{padding:24px}
 .content-panel{width:100%;max-width:1180px;margin:0 auto}
@@ -104,8 +102,7 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   .unlock-card{padding:28px}
   h1{font-size:33px}
   .toolbar{grid-template-columns:1fr auto;padding:10px 14px;gap:10px}
-  .view-switcher{grid-row:2;grid-column:1/-1;justify-self:stretch}
-  .view-button{flex:1}
+  .toolbar-label{justify-self:start;grid-column:1}
   #lock{grid-column:2}
   .family-content{padding:12px}
   .book-panel{padding:18px;border-radius:14px}

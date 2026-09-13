@@ -15,11 +15,11 @@
     <section class="unlock-card">
       <p class="eyebrow">Lincoln Family</p>
       <h1>Welcome home.</h1>
-      <p class="intro">Our book. Our calendar.<br>A little space to grow together.</p>
+      <p class="intro">Lincoln’s calendar.<br>A little space to grow together.</p>
       <form id="unlock-form">
         <label for="passphrase">Family passcode</label>
         <input id="passphrase" type="password" autocomplete="current-password" required maxlength="512" aria-describedby="message">
-        <button id="unlock" type="submit">Open family library</button>
+        <button id="unlock" type="submit">Open calendar</button>
       </form>
       <p id="message" role="status" aria-live="polite"></p>
       <p class="hint">Ask a family member for the passcode. No account needed.</p>
@@ -31,32 +31,12 @@
   <section id="family" hidden>
     <header class="toolbar">
       <strong class="brand">Lincoln Family</strong>
-      <nav class="view-switcher" aria-label="Family library">
-        <button class="view-button" type="button" data-view="book" aria-controls="book-view" aria-pressed="true">Book</button>
-        <button class="view-button" type="button" data-view="calendar" aria-controls="calendar-view" aria-pressed="false">Calendar</button>
-      </nav>
+      <span class="toolbar-label">Calendar</span>
       <button id="lock" type="button">Lock</button>
     </header>
 
     <main class="family-content">
-      <section id="book-view" class="content-panel book-panel" aria-labelledby="book-title">
-        <header class="book-header">
-          <div>
-            <p class="eyebrow">Family book</p>
-            <h1 id="book-title" tabindex="-1"></h1>
-            <p id="book-subtitle" class="book-subtitle"></p>
-            <p id="book-edition" class="book-edition"></p>
-          </div>
-          <div class="book-actions">
-            <a id="book-open" class="action primary-action" target="_blank" rel="noopener">Open full screen</a>
-            <a id="book-download" class="action secondary-action">Download PDF</a>
-          </div>
-        </header>
-        <p class="reader-note">The PDF is decrypted only after the correct passcode is entered. On a phone, “Open full screen” is usually easiest.</p>
-        <iframe id="book-reader" title="Family book PDF"></iframe>
-      </section>
-
-      <section id="calendar-view" class="content-panel calendar-panel" hidden>
+      <section id="calendar-view" class="content-panel calendar-panel">
         <iframe id="calendar" title="Lincoln’s family calendar" sandbox="allow-same-origin allow-downloads"></iframe>
       </section>
     </main>
