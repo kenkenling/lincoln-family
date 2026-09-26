@@ -15,11 +15,11 @@
     <section class="unlock-card">
       <p class="eyebrow">Lincoln Family</p>
       <h1>Welcome home.</h1>
-      <p class="intro">Lincoln’s calendar.<br>A little space to grow together.</p>
+      <p class="intro">Lincoln’s calendar and violin practice.<br>A little space to grow together.</p>
       <form id="unlock-form">
         <label for="passphrase">Family passcode</label>
         <input id="passphrase" type="password" autocomplete="current-password" required maxlength="512" aria-describedby="message">
-        <button id="unlock" type="submit">Open calendar</button>
+        <button id="unlock" type="submit">Open family library</button>
       </form>
       <p id="message" role="status" aria-live="polite"></p>
       <p class="hint">Ask a family member for the passcode. No account needed.</p>
@@ -31,13 +31,46 @@
   <section id="family" hidden>
     <header class="toolbar">
       <strong class="brand">Lincoln Family</strong>
-      <span class="toolbar-label">Calendar</span>
+      <nav class="view-switcher" aria-label="Family library">
+        <button class="view-button" type="button" data-view="calendar" aria-controls="calendar-view" aria-pressed="true">Calendar</button>
+        <button class="view-button" type="button" data-view="practice" aria-controls="practice-view" aria-pressed="false">Violin Practice</button>
+      </nav>
       <button id="lock" type="button">Lock</button>
     </header>
 
     <main class="family-content">
       <section id="calendar-view" class="content-panel calendar-panel">
         <iframe id="calendar" title="Lincoln’s family calendar" sandbox="allow-same-origin allow-downloads"></iframe>
+      </section>
+
+      <section id="practice-view" class="content-panel practice-panel" aria-labelledby="practice-title" hidden>
+        <header class="practice-header">
+          <div>
+            <p class="eyebrow">Violin practice</p>
+            <h1 id="practice-title" tabindex="-1"></h1>
+            <p id="practice-intro" class="practice-intro"></p>
+          </div>
+          <div class="practice-meta" aria-label="Practice-board status">
+            <span id="practice-count"></span>
+            <span id="practice-updated"></span>
+          </div>
+        </header>
+
+        <div class="practice-table-wrap">
+          <table class="practice-table" aria-describedby="practice-intro practice-updated">
+            <thead>
+              <tr>
+                <th scope="col">Technique</th>
+                <th scope="col">Short description</th>
+                <th scope="col">Coach focus / effort</th>
+                <th scope="col">Reference videos</th>
+                <th scope="col">Lincoln’s video</th>
+              </tr>
+            </thead>
+            <tbody id="practice-list"></tbody>
+          </table>
+        </div>
+        <p class="practice-note">Lincoln’s own practice-video links will appear here after they are added to the private source.</p>
       </section>
     </main>
   </section>

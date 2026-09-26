@@ -7,22 +7,136 @@ const message=document.getElementById('message');
 const welcome=document.getElementById('welcome');
 const family=document.getElementById('family');
 const calendarFrame=document.getElementById('calendar');
+const calendarView=document.getElementById('calendar-view');
+const practiceView=document.getElementById('practice-view');
+const practiceTitle=document.getElementById('practice-title');
+const practiceIntro=document.getElementById('practice-intro');
+const practiceUpdated=document.getElementById('practice-updated');
+const practiceCount=document.getElementById('practice-count');
+const practiceList=document.getElementById('practice-list');
+const viewButtons=[...document.querySelectorAll('[data-view]')];
 const lockButton=document.getElementById('lock');
 let blobURLs=[];
 let operation=0;
+
+function safeHttpsURL(value) {
+  try {
+    const url=new URL(value);
+    return url.protocol==='https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function videoLink(video) {
+  const href=safeHttpsURL(video?.url);
+  if(!href || typeof video.label!=='string') return null;
+  const link=document.createElement('a');
+  link.className='video-link';
+  link.href=href;
+  link.target='_blank';
+  link.rel='noreferrer noopener';
+  link.textContent=video.label;
+  return link;
+}
+
+function practiceCell(label) {
+  const cell=document.createElement('td');
+  cell.dataset.label=label;
+  return cell;
+}
+
+function appendVideos(cell,videos,emptyText) {
+  const links=(Array.isArray(videos) ? videos : []).map(videoLink).filter(Boolean);
+  if(!links.length){
+    const empty=document.createElement('span');
+    empty.className='empty-value';
+    empty.textContent=emptyText;
+    cell.append(empty);
+    return;
+  }
+  const list=document.createElement('ul');
+  list.className='video-list';
+  for(const link of links){
+    const item=document.createElement('li');
+    item.append(link);
+    list.append(item);
+  }
+  cell.append(list);
+}
+
+function renderPractice(practice) {
+  const source=practice ?? {
+    title:'Lincoln’s Violin Practice',
+    intro:'Practice items have not been added yet.',
+    updated:'',
+    items:[],
+  };
+  const items=Array.isArray(source.items) ? source.items : [];
+  practiceTitle.textContent=source.title;
+  practiceIntro.textContent=source.intro;
+  practiceUpdated.textContent=source.updated ? `Updated ${source.updated}` : '';
+  practiceCount.textContent=`${items.length} focus ${items.length===1 ? 'area' : 'areas'}`;
+  practiceList.replaceChildren();
+
+  for(const item of items){
+    const row=document.createElement('tr');
+
+    const technique=practiceCell('Technique');
+    const heading=document.createElement('strong');
+    heading.textContent=item.technique;
+    technique.append(heading);
+
+    const description=practiceCell('Short description');
+    description.textContent=item.description;
+
+    const focus=practiceCell('Coach focus / effort');
+    focus.textContent=item.coach_focus;
+
+    const references=practiceCell('Reference videos');
+    appendVideos(references,item.reference_videos,'Reference link to add');
+
+    const ownVideo=practiceCell('Lincoln’s video');
+    appendVideos(ownVideo,item.practice_video ? [item.practice_video] : [],'Not added yet');
+
+    row.append(technique,description,focus,references,ownVideo);
+    practiceList.append(row);
+  }
+}
+
+function clearPractice() {
+  practiceTitle.textContent='';
+  practiceIntro.textContent='';
+  practiceUpdated.textContent='';
+  practiceCount.textContent='';
+  practiceList.replaceChildren();
+}
+
+function showView(name,{focus=false}={}) {
+  const practiceSelected=name==='practice';
+  practiceView.hidden=!practiceSelected;
+  calendarView.hidden=practiceSelected;
+  for(const viewButton of viewButtons){
+    const selected=viewButton.dataset.view===name;
+    viewButton.setAttribute('aria-pressed',String(selected));
+  }
+  if(focus) (practiceSelected ? practiceTitle : calendarFrame).focus();
+}
 
 function lock() {
   operation++;
   calendarFrame.removeAttribute('srcdoc');
   calendarFrame.src='about:blank';
+  clearPractice();
   for(const url of blobURLs) URL.revokeObjectURL(url);
   blobURLs=[];
   input.value='';
   message.textContent='';
   family.hidden=true;
   welcome.hidden=false;
+  showView('calendar');
   button.disabled=false;
-  button.textContent='Open calendar';
+  button.textContent='Open family library';
   input.focus();
 }
 
@@ -62,8 +176,10 @@ function display(payload) {
   calendarFrame.removeAttribute('src');
   calendarFrame.srcdoc='<!doctype html>'+doc.documentElement.outerHTML;
 
+  renderPractice(payload.violinPractice);
   welcome.hidden=true;
   family.hidden=false;
+  showView('calendar');
   calendarFrame.focus();
 }
 
@@ -102,10 +218,14 @@ form.addEventListener('submit',async event=>{
     input.value='';
     if(token===operation){
       button.disabled=false;
-      button.textContent='Open calendar';
+      button.textContent='Open family library';
     }
   }
 });
+
+for(const viewButton of viewButtons){
+  viewButton.addEventListener('click',()=>showView(viewButton.dataset.view,{focus:true}));
+}
 
 lockButton.addEventListener('click',lock);
 calendarFrame.addEventListener('load',()=>{

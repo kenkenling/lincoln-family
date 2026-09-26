@@ -10,6 +10,32 @@ function base64(bytes) {
 function bytes(text) {
   return Uint8Array.from(atob(text), char=>char.charCodeAt(0));
 }
+function httpsURL(value) {
+  if(typeof value!=='string') return false;
+  try {return new URL(value).protocol==='https:';}
+  catch {return false;}
+}
+function videoValid(video) {
+  return video===null
+    || (video
+      && typeof video==='object'
+      && typeof video.label==='string'
+      && video.label.length>0
+      && httpsURL(video.url));
+}
+function practiceValid(practice) {
+  return practice
+    && ['title','intro','updated'].every(name=>typeof practice[name]==='string')
+    && Array.isArray(practice.items)
+    && new Set(practice.items.map(item=>item?.id)).size===practice.items.length
+    && practice.items.every(item=>
+      item
+      && ['id','technique','description','coach_focus'].every(name=>typeof item[name]==='string' && item[name].length>0)
+      && Array.isArray(item.reference_videos)
+      && item.reference_videos.every(video=>videoValid(video) && video!==null)
+      && videoValid(item.practice_video)
+    );
+}
 async function keyFor(password, salt) {
   const material=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveKey']);
   return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:ITERATIONS,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
@@ -35,6 +61,7 @@ export async function decrypt(envelope,password) {
     && book.filename.endsWith('.pdf')
     && book.pdfBase64.length>8
     && /^[A-Za-z0-9+/]*={0,2}$/.test(book.pdfBase64);
-  if (payload?.version!==2 || !calendarValid || !bookValid) throw new Error('Invalid family content.');
+  const violinPracticeValid=payload?.violinPractice===undefined || practiceValid(payload.violinPractice);
+  if (payload?.version!==2 || !calendarValid || !bookValid || !violinPracticeValid) throw new Error('Invalid family content.');
   return payload;
 }

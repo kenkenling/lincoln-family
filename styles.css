@@ -31,7 +31,7 @@ input{width:100%;padding:13px;border:1px solid #adbcaf;border-radius:9px;font:in
 button{border:0;border-radius:9px;background:var(--green);color:#fff;padding:13px 18px}
 #unlock{width:100%;margin-top:16px}
 button:disabled{opacity:.65;cursor:wait}
-input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visible,iframe:focus-visible{
+input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visible,#practice-title:focus-visible,iframe:focus-visible{
   outline:3px solid #97c4ad;
   outline-offset:3px;
 }
@@ -52,7 +52,9 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   z-index:10;
 }
 .brand{justify-self:start}
-.toolbar-label{justify-self:center;color:var(--green);font-weight:700}
+.view-switcher{display:flex;gap:6px;padding:4px;background:#f1f3ef;border-radius:11px}
+.view-button{padding:8px 16px;background:transparent;color:#45554e}
+.view-button[aria-pressed="true"]{background:#fff;color:var(--green);box-shadow:0 2px 8px #203a2b18}
 #lock{justify-self:end;padding:9px 15px}
 .family-content{padding:24px}
 .content-panel{width:100%;max-width:1180px;margin:0 auto}
@@ -97,12 +99,48 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   border-radius:12px;
   background:#f4f6f2;
 }
+.practice-panel{
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:28px;
+  box-shadow:0 12px 40px #29382e0b;
+}
+.practice-header{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:24px}
+.practice-header h1{font-size:34px;margin:10px 0 6px}
+.practice-intro{max-width:730px;margin:0;color:#58645d;font-size:16px}
+.practice-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.practice-meta span{padding:7px 11px;border-radius:999px;background:var(--green-soft);color:var(--green);font-size:12px;font-weight:750}
+.practice-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:14px}
+.practice-table{width:100%;border-collapse:collapse;min-width:960px}
+.practice-table th{
+  padding:13px 14px;
+  text-align:left;
+  vertical-align:bottom;
+  background:#f5f7f3;
+  color:#536058;
+  font-size:12px;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+}
+.practice-table td{padding:17px 14px;vertical-align:top;border-top:1px solid var(--border);font-size:14px}
+.practice-table tbody tr:hover{background:#fcfcf8}
+.practice-table th:nth-child(1){width:12%}
+.practice-table th:nth-child(2){width:21%}
+.practice-table th:nth-child(3){width:29%}
+.practice-table th:nth-child(4){width:23%}
+.practice-table th:nth-child(5){width:15%}
+.video-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.video-link{color:var(--green);font-weight:700;text-underline-offset:3px}
+.empty-value{color:#888d87;font-style:italic}
+.practice-note{font-size:12px;color:#6d756f;margin:16px 2px 0}
 @media(max-width:720px){
   #welcome{padding:16px}
   .unlock-card{padding:28px}
   h1{font-size:33px}
   .toolbar{grid-template-columns:1fr auto;padding:10px 14px;gap:10px}
-  .toolbar-label{justify-self:start;grid-column:1}
+  .view-switcher{grid-row:2;grid-column:1/-1;justify-self:stretch}
+  .view-button{flex:1;padding:8px 10px}
   #lock{grid-column:2}
   .family-content{padding:12px}
   .book-panel{padding:18px;border-radius:14px}
@@ -111,4 +149,22 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   .book-actions{justify-content:flex-start;margin-top:18px}
   #book-reader{height:70dvh;min-height:480px}
   #calendar{height:75dvh;min-height:540px}
+  .practice-panel{padding:18px;border-radius:14px}
+  .practice-header{display:block;margin-bottom:18px}
+  .practice-header h1{font-size:28px}
+  .practice-meta{justify-content:flex-start;margin-top:16px}
+  .practice-table-wrap{overflow:visible;border:0}
+  .practice-table,.practice-table tbody,.practice-table tr,.practice-table td{display:block;width:100%}
+  .practice-table{min-width:0}
+  .practice-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .practice-table tr{border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+  .practice-table td{
+    display:grid;
+    grid-template-columns:minmax(105px,34%) 1fr;
+    gap:12px;
+    padding:13px;
+    border-top:1px solid var(--border);
+  }
+  .practice-table td:first-child{border-top:0;background:#f8faf7}
+  .practice-table td::before{content:attr(data-label);font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#667169}
 }
