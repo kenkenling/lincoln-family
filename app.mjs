@@ -47,6 +47,9 @@ function display(payload) {
     if(downloads[href]){
       link.href=downloads[href];
       link.download=href;
+    }else if(/^https:\/\//i.test(href)){
+      link.target='_blank';
+      link.rel='noreferrer noopener';
     }else if(!href.startsWith('#')){
       link.removeAttribute('href');
       link.removeAttribute('target');
