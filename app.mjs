@@ -65,6 +65,14 @@ function appendVideos(cell,videos,emptyText) {
   cell.append(list);
 }
 
+function appendWhyImportant(cell,whyImportant) {
+  const copy=document.createElement('p');
+  copy.className='why-copy';
+  copy.textContent=whyImportant?.text ?? 'Why this matters has not been added yet.';
+  cell.append(copy);
+  if(whyImportant?.video) appendVideos(cell,[whyImportant.video],'');
+}
+
 function renderPractice(practice) {
   const source=practice ?? {
     title:'Lincoln’s Violin Practice',
@@ -93,13 +101,23 @@ function renderPractice(practice) {
     const focus=practiceCell('Coach focus / effort');
     focus.textContent=item.coach_focus;
 
-    const references=practiceCell('Reference videos');
+    const references=practiceCell('Reference videos from others');
     appendVideos(references,item.reference_videos,'Reference link to add');
+
+    const teacherReference=practiceCell('Reference from Teacher Tony');
+    appendVideos(
+      teacherReference,
+      item.teacher_tony_reference ? [item.teacher_tony_reference] : [],
+      'Not added yet',
+    );
 
     const ownVideo=practiceCell('Lincoln’s video');
     appendVideos(ownVideo,item.practice_video ? [item.practice_video] : [],'Not added yet');
 
-    row.append(technique,description,focus,references,ownVideo);
+    const whyImportant=practiceCell('Why important');
+    appendWhyImportant(whyImportant,item.why_important);
+
+    row.append(technique,description,focus,references,teacherReference,ownVideo,whyImportant);
     practiceList.append(row);
   }
 }

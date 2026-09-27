@@ -112,7 +112,7 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
 .practice-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .practice-meta span{padding:7px 11px;border-radius:999px;background:var(--green-soft);color:var(--green);font-size:12px;font-weight:750}
 .practice-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:14px}
-.practice-table{width:100%;border-collapse:collapse;min-width:960px}
+.practice-table{width:100%;border-collapse:collapse;min-width:1320px}
 .practice-table th{
   padding:13px 14px;
   text-align:left;
@@ -125,14 +125,18 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
 }
 .practice-table td{padding:17px 14px;vertical-align:top;border-top:1px solid var(--border);font-size:14px}
 .practice-table tbody tr:hover{background:#fcfcf8}
-.practice-table th:nth-child(1){width:12%}
-.practice-table th:nth-child(2){width:21%}
-.practice-table th:nth-child(3){width:29%}
-.practice-table th:nth-child(4){width:23%}
-.practice-table th:nth-child(5){width:15%}
+.practice-table th:nth-child(1){width:9%}
+.practice-table th:nth-child(2){width:14%}
+.practice-table th:nth-child(3){width:20%}
+.practice-table th:nth-child(4){width:14%}
+.practice-table th:nth-child(5){width:13%}
+.practice-table th:nth-child(6){width:12%}
+.practice-table th:nth-child(7){width:18%}
 .video-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
 .video-link{color:var(--green);font-weight:700;text-underline-offset:3px}
 .empty-value{color:#888d87;font-style:italic}
+.why-copy{margin:0 0 8px}
+.why-copy:last-child{margin-bottom:0}
 .practice-note{font-size:12px;color:#6d756f;margin:16px 2px 0}
 @media(max-width:720px){
   #welcome{padding:16px}

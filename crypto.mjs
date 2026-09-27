@@ -33,7 +33,13 @@ function practiceValid(practice) {
       && ['id','technique','description','coach_focus'].every(name=>typeof item[name]==='string' && item[name].length>0)
       && Array.isArray(item.reference_videos)
       && item.reference_videos.every(video=>videoValid(video) && video!==null)
+      && videoValid(item.teacher_tony_reference)
       && videoValid(item.practice_video)
+      && item.why_important
+      && typeof item.why_important==='object'
+      && typeof item.why_important.text==='string'
+      && item.why_important.text.length>0
+      && videoValid(item.why_important.video)
     );
 }
 async function keyFor(password, salt) {
