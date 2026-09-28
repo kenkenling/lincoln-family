@@ -14,6 +14,10 @@ const practiceIntro=document.getElementById('practice-intro');
 const practiceUpdated=document.getElementById('practice-updated');
 const practiceCount=document.getElementById('practice-count');
 const practiceList=document.getElementById('practice-list');
+const currentProgram=document.getElementById('current-program');
+const currentProgramTitle=document.getElementById('current-program-title');
+const currentProgramIntro=document.getElementById('current-program-intro');
+const currentProgramPieces=document.getElementById('current-program-pieces');
 const unassignedMaterials=document.getElementById('unassigned-materials');
 const unassignedMaterialsList=document.getElementById('unassigned-materials-list');
 const viewButtons=[...document.querySelectorAll('[data-view]')];
@@ -122,6 +126,53 @@ function renderUnassignedMaterials(materials) {
   }
 }
 
+function renderCurrentProgram(program) {
+  currentProgramPieces.replaceChildren();
+  currentProgram.hidden=!program;
+  if(!program)return;
+  currentProgramTitle.textContent=program.title;
+  currentProgramIntro.textContent=program.intro;
+  for(const piece of program.pieces){
+    const card=document.createElement('article');
+    card.className='repertoire-card';
+    if(piece.highlighted)card.classList.add('is-highlighted');
+
+    if(piece.highlighted){
+      const badge=document.createElement('span');
+      badge.className='focus-badge';
+      badge.textContent='Current focus';
+      card.append(badge);
+    }
+
+    const title=document.createElement('h3');
+    title.textContent=piece.title;
+    card.append(title);
+
+    const part=document.createElement('p');
+    part.className='repertoire-part';
+    part.textContent=piece.part;
+    card.append(part);
+
+    const resources=document.createElement('ul');
+    resources.className='repertoire-resources';
+    const sheetLink=privateFileLink(piece.sheet_music);
+    if(sheetLink){
+      const item=document.createElement('li');
+      item.append(sheetLink);
+      resources.append(item);
+    }
+    for(const reference of piece.reference_videos){
+      const link=videoLink(reference);
+      if(!link)continue;
+      const item=document.createElement('li');
+      item.append(link);
+      resources.append(item);
+    }
+    card.append(resources);
+    currentProgramPieces.append(card);
+  }
+}
+
 function appendWhyImportant(cell,whyImportant) {
   const copy=document.createElement('p');
   copy.className='why-copy';
@@ -135,6 +186,7 @@ function renderPractice(practice) {
     title:'Lincoln’s Violin Practice',
     intro:'Practice items have not been added yet.',
     updated:'',
+    current_program:null,
     unassigned_materials:[],
     items:[],
   };
@@ -144,6 +196,7 @@ function renderPractice(practice) {
   practiceUpdated.textContent=source.updated ? `Updated ${source.updated}` : '';
   practiceCount.textContent=`${items.length} focus ${items.length===1 ? 'area' : 'areas'}`;
   practiceList.replaceChildren();
+  renderCurrentProgram(source.current_program);
 
   for(const item of items){
     const row=document.createElement('tr');
@@ -190,6 +243,10 @@ function clearPractice() {
   practiceUpdated.textContent='';
   practiceCount.textContent='';
   practiceList.replaceChildren();
+  currentProgramTitle.textContent='';
+  currentProgramIntro.textContent='';
+  currentProgramPieces.replaceChildren();
+  currentProgram.hidden=true;
   unassignedMaterialsList.replaceChildren();
   unassignedMaterials.hidden=true;
 }

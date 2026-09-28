@@ -41,9 +41,29 @@ function musicSheetValid(sheet) {
     && sheet.base64.length%4===0
     && /^[A-Za-z0-9+/]*={0,2}$/.test(sheet.base64);
 }
+function currentProgramValid(program) {
+  return program===null
+    || (program
+      && typeof program==='object'
+      && typeof program.title==='string'
+      && program.title.length>0
+      && typeof program.intro==='string'
+      && Array.isArray(program.pieces)
+      && new Set(program.pieces.map(piece=>piece?.id)).size===program.pieces.length
+      && program.pieces.every(piece=>
+        piece
+        && ['id','title','part'].every(name=>typeof piece[name]==='string' && piece[name].length>0)
+        && typeof piece.highlighted==='boolean'
+        && piece.sheet_music!==null
+        && musicSheetValid(piece.sheet_music)
+        && Array.isArray(piece.reference_videos)
+        && piece.reference_videos.every(video=>video!==null && videoValid(video))
+      ));
+}
 function practiceValid(practice) {
   return practice
     && ['title','intro','updated'].every(name=>typeof practice[name]==='string')
+    && currentProgramValid(practice.current_program)
     && Array.isArray(practice.unassigned_materials)
     && practice.unassigned_materials.every(sheet=>sheet!==null && musicSheetValid(sheet))
     && new Set(practice.unassigned_materials.map(sheet=>sheet?.filename)).size===practice.unassigned_materials.length

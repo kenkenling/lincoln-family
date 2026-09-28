@@ -111,6 +111,16 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
 .practice-intro{max-width:730px;margin:0;color:#58645d;font-size:16px}
 .practice-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .practice-meta span{padding:7px 11px;border-radius:999px;background:var(--green-soft);color:var(--green);font-size:12px;font-weight:750}
+.current-program{margin:0 0 24px;padding:22px;border:1px solid #cad7cd;border-radius:16px;background:linear-gradient(135deg,#f7faf6,#f1f6ef)}
+.current-program-heading h2{margin:7px 0 5px;font-size:25px}
+.current-program-heading p:last-child{margin:0;color:#627067}
+.repertoire-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
+.repertoire-card{position:relative;padding:18px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.repertoire-card.is-highlighted{border:2px solid #769a7d;background:#f5fbf3;box-shadow:0 8px 24px #49664e1a}
+.focus-badge{display:inline-block;margin-bottom:10px;padding:5px 8px;border-radius:999px;background:var(--green);color:#fff;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.repertoire-card h3{margin:0;font-size:19px}
+.repertoire-part{margin:5px 0 0;color:#667169;font-size:13px}
+.repertoire-resources{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;font-size:13px}
 .practice-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:14px}
 .practice-table{width:100%;border-collapse:collapse;min-width:1500px}
 .practice-table th{
@@ -163,6 +173,8 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   .practice-header{display:block;margin-bottom:18px}
   .practice-header h1{font-size:28px}
   .practice-meta{justify-content:flex-start;margin-top:16px}
+  .current-program{padding:17px}
+  .repertoire-grid{grid-template-columns:1fr}
   .practice-table-wrap{overflow:visible;border:0}
   .practice-table,.practice-table tbody,.practice-table tr,.practice-table td{display:block;width:100%}
   .practice-table{min-width:0}
