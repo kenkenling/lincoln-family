@@ -169,6 +169,26 @@ function renderCurrentProgram(program) {
       resources.append(item);
     }
     card.append(resources);
+
+    if(piece.practice_points.length){
+      const audition=document.createElement('section');
+      audition.className='audition-practice';
+      const label=document.createElement('h4');
+      label.textContent='Seating audition practice';
+      audition.append(label);
+      const points=document.createElement('ul');
+      points.className='audition-links';
+      for(const point of piece.practice_points){
+        const link=videoLink(point);
+        if(!link)continue;
+        const item=document.createElement('li');
+        item.append(link);
+        points.append(item);
+      }
+      audition.append(points);
+      card.append(audition);
+    }
+
     currentProgramPieces.append(card);
   }
 }

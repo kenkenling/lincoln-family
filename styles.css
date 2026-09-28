@@ -121,6 +121,9 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
 .repertoire-card h3{margin:0;font-size:19px}
 .repertoire-part{margin:5px 0 0;color:#667169;font-size:13px}
 .repertoire-resources{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;font-size:13px}
+.audition-practice{margin-top:16px;padding:14px;border-radius:10px;background:#fff7df;border:1px solid #e7cc78}
+.audition-practice h4{margin:0;color:#66500b;font-size:13px}
+.audition-links{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:7px;font-size:13px}
 .practice-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:14px}
 .practice-table{width:100%;border-collapse:collapse;min-width:1500px}
 .practice-table th{

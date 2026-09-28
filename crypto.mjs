@@ -58,6 +58,8 @@ function currentProgramValid(program) {
         && musicSheetValid(piece.sheet_music)
         && Array.isArray(piece.reference_videos)
         && piece.reference_videos.every(video=>video!==null && videoValid(video))
+        && Array.isArray(piece.practice_points)
+        && piece.practice_points.every(video=>video!==null && videoValid(video))
       ));
 }
 function practiceValid(practice) {
