@@ -65,6 +65,35 @@ function appendVideos(cell,videos,emptyText) {
   cell.append(list);
 }
 
+function appendMusicSheet(cell,sheet) {
+  if(!sheet){
+    const empty=document.createElement('span');
+    empty.className='empty-value';
+    empty.textContent='Not added yet';
+    cell.append(empty);
+    return;
+  }
+  try {
+    const binary=atob(sheet.base64);
+    const content=Uint8Array.from(binary,char=>char.charCodeAt(0));
+    const href=URL.createObjectURL(new Blob([content],{type:sheet.mime}));
+    blobURLs.push(href);
+    const link=document.createElement('a');
+    link.className='video-link';
+    link.href=href;
+    link.target='_blank';
+    link.rel='noreferrer noopener';
+    link.textContent=sheet.label;
+    link.title=`Open ${sheet.filename}`;
+    cell.append(link);
+  } catch {
+    const invalid=document.createElement('span');
+    invalid.className='empty-value';
+    invalid.textContent='Sheet unavailable';
+    cell.append(invalid);
+  }
+}
+
 function appendWhyImportant(cell,whyImportant) {
   const copy=document.createElement('p');
   copy.className='why-copy';
@@ -101,6 +130,9 @@ function renderPractice(practice) {
     const focus=practiceCell('Coach focus / effort');
     focus.textContent=item.coach_focus;
 
+    const musicSheet=practiceCell('Sheet music');
+    appendMusicSheet(musicSheet,item.music_sheet);
+
     const references=practiceCell('Reference videos from others');
     appendVideos(references,item.reference_videos,'Reference link to add');
 
@@ -117,7 +149,7 @@ function renderPractice(practice) {
     const whyImportant=practiceCell('Why important');
     appendWhyImportant(whyImportant,item.why_important);
 
-    row.append(technique,description,focus,references,teacherReference,ownVideo,whyImportant);
+    row.append(technique,description,focus,musicSheet,references,teacherReference,ownVideo,whyImportant);
     practiceList.append(row);
   }
 }

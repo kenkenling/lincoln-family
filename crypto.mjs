@@ -23,6 +23,24 @@ function videoValid(video) {
       && video.label.length>0
       && httpsURL(video.url));
 }
+function musicSheetValid(sheet) {
+  if(sheet===null)return true;
+  if(!sheet || typeof sheet!=='object')return false;
+  const extensions={
+    'image/png':['.png'],
+    'image/jpeg':['.jpg','.jpeg'],
+    'application/pdf':['.pdf'],
+  };
+  const allowed=extensions[sheet.mime];
+  return typeof sheet.label==='string'
+    && sheet.label.length>0
+    && typeof sheet.filename==='string'
+    && allowed?.some(extension=>sheet.filename.toLowerCase().endsWith(extension))
+    && typeof sheet.base64==='string'
+    && sheet.base64.length>8
+    && sheet.base64.length%4===0
+    && /^[A-Za-z0-9+/]*={0,2}$/.test(sheet.base64);
+}
 function practiceValid(practice) {
   return practice
     && ['title','intro','updated'].every(name=>typeof practice[name]==='string')
@@ -33,6 +51,7 @@ function practiceValid(practice) {
       && ['id','technique','description','coach_focus'].every(name=>typeof item[name]==='string' && item[name].length>0)
       && Array.isArray(item.reference_videos)
       && item.reference_videos.every(video=>videoValid(video) && video!==null)
+      && musicSheetValid(item.music_sheet)
       && videoValid(item.teacher_tony_reference)
       && videoValid(item.practice_video)
       && item.why_important
