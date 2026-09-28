@@ -139,6 +139,11 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
 .why-copy{margin:0 0 8px}
 .why-copy:last-child{margin-bottom:0}
 .practice-note{font-size:12px;color:#6d756f;margin:16px 2px 0}
+.unassigned-materials{margin-top:24px;padding:20px;border:1px dashed #cbd4cc;border-radius:14px;background:#fafbf8}
+.unassigned-materials h2{margin:0 0 6px;font-size:19px}
+.unassigned-materials p{margin:0;color:#687269;font-size:14px}
+.material-list{list-style:none;padding:0;margin:16px 0 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.material-list li{padding:13px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:14px}
 @media(max-width:720px){
   #welcome{padding:16px}
   .unlock-card{padding:28px}
@@ -172,4 +177,5 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   }
   .practice-table td:first-child{border-top:0;background:#f8faf7}
   .practice-table td::before{content:attr(data-label);font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#667169}
+  .material-list{grid-template-columns:1fr}
 }

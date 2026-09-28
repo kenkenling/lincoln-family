@@ -44,6 +44,9 @@ function musicSheetValid(sheet) {
 function practiceValid(practice) {
   return practice
     && ['title','intro','updated'].every(name=>typeof practice[name]==='string')
+    && Array.isArray(practice.unassigned_materials)
+    && practice.unassigned_materials.every(sheet=>sheet!==null && musicSheetValid(sheet))
+    && new Set(practice.unassigned_materials.map(sheet=>sheet?.filename)).size===practice.unassigned_materials.length
     && Array.isArray(practice.items)
     && new Set(practice.items.map(item=>item?.id)).size===practice.items.length
     && practice.items.every(item=>

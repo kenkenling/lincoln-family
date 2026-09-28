@@ -14,6 +14,8 @@ const practiceIntro=document.getElementById('practice-intro');
 const practiceUpdated=document.getElementById('practice-updated');
 const practiceCount=document.getElementById('practice-count');
 const practiceList=document.getElementById('practice-list');
+const unassignedMaterials=document.getElementById('unassigned-materials');
+const unassignedMaterialsList=document.getElementById('unassigned-materials-list');
 const viewButtons=[...document.querySelectorAll('[data-view]')];
 const lockButton=document.getElementById('lock');
 let blobURLs=[];
@@ -65,14 +67,7 @@ function appendVideos(cell,videos,emptyText) {
   cell.append(list);
 }
 
-function appendMusicSheet(cell,sheet) {
-  if(!sheet){
-    const empty=document.createElement('span');
-    empty.className='empty-value';
-    empty.textContent='Not added yet';
-    cell.append(empty);
-    return;
-  }
+function privateFileLink(sheet) {
   try {
     const binary=atob(sheet.base64);
     const content=Uint8Array.from(binary,char=>char.charCodeAt(0));
@@ -85,12 +80,45 @@ function appendMusicSheet(cell,sheet) {
     link.rel='noreferrer noopener';
     link.textContent=sheet.label;
     link.title=`Open ${sheet.filename}`;
-    cell.append(link);
+    return link;
   } catch {
+    return null;
+  }
+}
+
+function appendMusicSheet(cell,sheet) {
+  if(!sheet){
+    const empty=document.createElement('span');
+    empty.className='empty-value';
+    empty.textContent='Not added yet';
+    cell.append(empty);
+    return;
+  }
+  const link=privateFileLink(sheet);
+  if(link){
+    cell.append(link);
+  }else{
     const invalid=document.createElement('span');
     invalid.className='empty-value';
     invalid.textContent='Sheet unavailable';
     cell.append(invalid);
+  }
+}
+
+function renderUnassignedMaterials(materials) {
+  const sources=Array.isArray(materials) ? materials : [];
+  unassignedMaterialsList.replaceChildren();
+  unassignedMaterials.hidden=!sources.length;
+  for(const sheet of sources){
+    const item=document.createElement('li');
+    const link=privateFileLink(sheet);
+    if(link){
+      item.append(link);
+    }else{
+      item.textContent='Material unavailable';
+      item.className='empty-value';
+    }
+    unassignedMaterialsList.append(item);
   }
 }
 
@@ -107,6 +135,7 @@ function renderPractice(practice) {
     title:'Lincoln’s Violin Practice',
     intro:'Practice items have not been added yet.',
     updated:'',
+    unassigned_materials:[],
     items:[],
   };
   const items=Array.isArray(source.items) ? source.items : [];
@@ -152,6 +181,7 @@ function renderPractice(practice) {
     row.append(technique,description,focus,musicSheet,references,teacherReference,ownVideo,whyImportant);
     practiceList.append(row);
   }
+  renderUnassignedMaterials(source.unassigned_materials);
 }
 
 function clearPractice() {
@@ -160,6 +190,8 @@ function clearPractice() {
   practiceUpdated.textContent='';
   practiceCount.textContent='';
   practiceList.replaceChildren();
+  unassignedMaterialsList.replaceChildren();
+  unassignedMaterials.hidden=true;
 }
 
 function showView(name,{focus=false}={}) {
