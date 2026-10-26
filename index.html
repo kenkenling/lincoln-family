@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self' blob: about:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://www.youtube.com https://s.ytimg.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://www.youtube.com https://www.googleapis.com https://accounts.google.com; frame-src 'self' blob: about: https://www.youtube.com https://www.youtube-nocookie.com https://accounts.google.com; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Lincoln Family</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="youtube-config.js"></script>
   <script type="module" src="app.mjs"></script>
 </head>
 <body>
@@ -67,6 +68,81 @@
           <div id="current-program-pieces" class="repertoire-grid"></div>
         </section>
 
+        <nav class="practice-tools" aria-label="Practice planning">
+          <button id="show-today" type="button" aria-pressed="true">Today’s Practice</button>
+          <button id="show-assignment" type="button" aria-pressed="false">Parent Assignment</button>
+          <button id="show-summary" type="button" aria-pressed="false">Summary</button>
+        </nav>
+
+        <section id="assignment-editor" class="assignment-editor" aria-labelledby="assignment-title" hidden>
+          <h2 id="assignment-title">Create today’s assignment</h2>
+          <p>Choose any topic with a YouTube video from the practice table. Its teacher, reference, and “why it matters” videos are available to assign. Set timestamps and repetitions, or leave both times blank for the whole video.</p>
+          <div id="assignment-options" class="assignment-options"></div>
+          <form id="custom-task-form" class="custom-task-form">
+            <h3>Add a YouTube task</h3>
+            <label>Task name<input id="custom-task-name" required maxlength="100" placeholder="e.g. Shifting exercise"></label>
+            <label>YouTube link<input id="custom-task-url" type="url" required placeholder="https://youtu.be/…"></label>
+            <div class="clip-settings">
+              <label>Start time<input id="custom-task-start" required placeholder="0:00" inputmode="decimal"></label>
+              <label>End time<input id="custom-task-end" placeholder="Full video (leave blank)" inputmode="decimal"></label>
+              <label>Repetitions<input id="custom-task-repeats" type="number" required min="1" max="20" value="3"></label>
+            </div>
+            <p class="field-hint">Leave the start blank to begin at 0:00. Leave the end blank to play the whole video.</p>
+            <button type="submit">Add task</button>
+            <p id="assignment-message" role="status"></p>
+          </form>
+          <div id="custom-task-list" class="custom-task-list"></div>
+          <button id="save-assignment" type="button">Save today’s assignment</button>
+        </section>
+
+        <section id="today-dashboard" class="today-dashboard" aria-labelledby="today-title">
+          <div class="today-heading">
+            <div><p class="eyebrow" id="today-date"></p><h2 id="today-title">Today’s Practice</h2></div>
+            <div class="today-controls">
+              <span id="today-timer" class="today-timer">0 min</span>
+              <button id="start-practice" type="button">Start</button>
+              <button id="pause-practice" type="button" disabled>Pause</button>
+            </div>
+          </div>
+          <p id="today-empty" class="practice-intro">No tasks assigned yet. A parent can create today’s plan.</p>
+          <div id="today-task-list" class="today-task-list"></div>
+        </section>
+
+        <section id="daily-summary" class="daily-summary" aria-labelledby="summary-title" hidden>
+          <h2 id="summary-title">Practice summary</h2>
+          <p id="summary-total" class="summary-total"></p>
+          <div id="summary-log" class="summary-log"></div>
+          <p>Review the recordings below. Each take can be uploaded to YouTube as Private.</p>
+          <div id="summary-recordings" class="summary-recordings"></div>
+        </section>
+
+        <section id="practice-runner" class="practice-runner" aria-labelledby="practice-runner-title" hidden>
+          <header class="runner-heading">
+            <div>
+              <p class="eyebrow">Guided practice</p>
+              <h2 id="practice-runner-title">Choose a focus and a practice mode</h2>
+              <p>Choose a practice mode for today’s task. When finished, review the practice summary and upload recordings to YouTube as Private.</p>
+            </div>
+          </header>
+          <div id="practice-cards" class="practice-cards"></div>
+          <section id="practice-session" class="practice-session" aria-live="polite" hidden>
+            <div class="session-title-row">
+              <div>
+                <p class="eyebrow" id="session-mode"></p>
+                <h3 id="session-focus"></h3>
+              </div>
+              <span id="session-progress" class="session-progress"></span>
+            </div>
+            <div id="youtube-player" class="youtube-player"></div>
+            <div id="recording-area" class="recording-area" hidden>
+              <video id="camera-preview" autoplay muted playsinline></video>
+              <p id="recording-status" role="status"></p>
+              <button id="stop-recording" type="button" class="stop-recording">Stop recording</button>
+            </div>
+            <div id="saved-takes" class="saved-takes"></div>
+          </section>
+        </section>
+
         <div class="practice-table-wrap">
           <table class="practice-table" aria-describedby="practice-intro practice-updated">
             <thead>
@@ -84,7 +160,7 @@
             <tbody id="practice-list"></tbody>
           </table>
         </div>
-        <p class="practice-note">Lincoln’s own practice-video links will appear here after they are added to the private source.</p>
+        <p class="practice-note">Unuploaded recordings are temporary. Download a take before locking or reloading the family library; uploaded videos stay in YouTube.</p>
 
         <section id="unassigned-materials" class="unassigned-materials" aria-labelledby="unassigned-materials-title" hidden>
           <h2 id="unassigned-materials-title">Unassigned teacher materials</h2>

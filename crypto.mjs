@@ -90,6 +90,21 @@ async function keyFor(password, salt) {
   const material=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveKey']);
   return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:ITERATIONS,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
 }
+const PRACTICE_AAD=encoder.encode('lincoln-family:practice:v1');
+export async function encryptPracticeData(value,password){
+  if(typeof password!=='string' || password.length<4)throw new Error('Invalid practice archive key.');
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:PRACTICE_AAD,tagLength:128},await keyFor(password,salt),encoder.encode(JSON.stringify(value)));
+  return {version:1,kdf:'PBKDF2-SHA256',iterations:ITERATIONS,cipher:'AES-256-GCM',salt:base64(salt),iv:base64(iv),ciphertext:base64(ciphertext)};
+}
+export async function decryptPracticeData(envelope,password){
+  if(envelope?.version!==1 || envelope.iterations!==ITERATIONS || envelope.kdf!=='PBKDF2-SHA256' || envelope.cipher!=='AES-256-GCM')throw new Error('Invalid practice archive.');
+  const salt=bytes(envelope.salt),iv=bytes(envelope.iv);
+  if(salt.length!==16 || iv.length!==12)throw new Error('Invalid practice archive.');
+  const plaintext=await crypto.subtle.decrypt({name:'AES-GCM',iv,additionalData:PRACTICE_AAD,tagLength:128},await keyFor(password,salt),bytes(envelope.ciphertext));
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
 export async function encrypt(payload,password) {
   if (typeof password !== 'string' || password.length<4) throw new Error('Use a passcode of at least 4 characters.');
   const salt=crypto.getRandomValues(new Uint8Array(16));

@@ -114,6 +114,73 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
 .current-program{margin:0 0 24px;padding:22px;border:1px solid #cad7cd;border-radius:16px;background:linear-gradient(135deg,#f7faf6,#f1f6ef)}
 .current-program-heading h2{margin:7px 0 5px;font-size:25px}
 .current-program-heading p:last-child{margin:0;color:#627067}
+.practice-tools{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.practice-tools button{padding:9px 13px;background:#e9efe9;color:var(--green);font-size:13px;font-weight:750}
+.practice-tools button[aria-pressed="true"]{background:var(--green);color:#fff}
+.assignment-editor,.today-dashboard,.daily-summary{margin:0 0 24px;padding:20px;border:1px solid #d6dfd5;border-radius:15px;background:#f8faf6}
+.assignment-editor h2,.today-dashboard h2,.daily-summary h2{margin:0 0 7px}
+.assignment-editor>p,.daily-summary>p{color:#627067}
+.assignment-options,.custom-task-list,.today-task-list,.summary-log{display:grid;gap:10px;margin:16px 0}
+.assignment-option,.custom-task-row,.today-task,.summary-entry{padding:14px;border:1px solid var(--border);border-radius:11px;background:#fff}
+.assignment-option{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
+.assignment-option input[type=checkbox]{width:auto;margin-top:3px}
+.assignment-option-body{display:grid;gap:8px}
+.assignment-option-fields{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px}
+.assignment-option label,.custom-task-form label{display:block;color:#47564e;font-size:12px;font-weight:750}
+.assignment-option input,.assignment-option select,.custom-task-form input{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #cbd4cb;border-radius:8px;background:#fff;font:inherit;font-size:13px}
+.custom-task-form{display:grid;gap:10px;margin:18px 0;padding:16px;border:1px dashed #aab8aa;border-radius:12px;background:#fff}
+.custom-task-form h3{margin:0}
+.custom-task-form .clip-settings{align-items:end}
+.custom-task-row,.today-task,.summary-entry{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.today-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.today-heading h2{font-size:26px}
+.today-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.today-timer,.summary-total{font-size:20px;font-weight:800;color:var(--green)}
+.today-task p,.summary-entry p{margin:4px 0;color:#627067;font-size:13px}
+.today-task button,.custom-task-row button{padding:7px 10px;font-size:12px}
+.today-task .task-complete{color:#54785a;font-weight:750}
+.task-done-button{padding:8px 11px;font-size:12px;font-weight:750}
+.daily-summary{background:#fff}
+.summary-recordings{display:grid;gap:10px}
+#assignment-message{margin:0;color:#8d3f35;font-size:13px}
+.practice-runner{margin:0 0 26px;padding:22px;border:1px solid #d6dfd5;border-radius:16px;background:#f8faf6}
+.runner-heading h2{font-size:23px;margin:7px 0 5px}
+.runner-heading p:last-child{margin:0;color:#627067}
+.practice-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+.practice-card{padding:17px;border:1px solid var(--border);border-radius:13px;background:#fff}
+.practice-card h3{margin:0;font-size:19px}
+.card-description{margin:7px 0;color:#58645d;font-size:14px}
+.card-coach-focus{margin:10px 0;padding:10px 12px;border-radius:8px;background:#f5f7f3;color:#46564c;font-size:13px}
+.practice-card label{display:block;margin:12px 0 0;font-size:12px;font-weight:750;color:#47564e}
+.practice-card select,.practice-card input{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #cbd4cb;border-radius:8px;background:#fff;color:#292722;font:inherit;font-size:13px}
+.clip-settings{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.clip-settings label{min-width:0}
+.settings-hint{margin:8px 0;color:#73796f;font-size:11px}
+.mode-buttons{display:grid;gap:7px;margin-top:12px}
+.mode-button{padding:10px 12px;font-size:13px;font-weight:750}
+.mode-listen{background:#e9efe9;color:var(--green)}
+.practice-session{margin-top:20px;padding:18px;border:1px solid #d6dfd5;border-radius:14px;background:#fff}
+.session-title-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.session-title-row h3{margin:4px 0 0;font-size:20px}
+.session-progress{padding:6px 10px;border-radius:999px;background:var(--gold-soft);color:#725a17;font-size:12px;font-weight:800;white-space:nowrap}
+.youtube-player{width:100%;max-width:760px;margin:0 auto;aspect-ratio:16/9;background:#171a18;border-radius:10px;overflow:hidden}
+.youtube-player iframe{display:block;width:100%;height:100%;border:0}
+.recording-area{display:grid;justify-items:start;gap:9px;margin-top:14px}
+.recording-area video{width:min(100%,480px);border-radius:10px;background:#111}
+.recording-area p{margin:0;color:#536058;font-size:14px}
+.stop-recording{padding:9px 13px;background:#984b3f;font-size:13px}
+.next-take{margin-left:8px;padding:7px 10px;font-size:12px}
+.saved-takes{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.saved-take{display:grid;gap:8px;padding:10px;border:1px solid var(--border);border-radius:10px;background:#fafbf8}
+.saved-take video{width:100%;border-radius:7px;background:#111}
+.saved-take a{color:var(--green);font-size:13px;font-weight:750}
+.take-controls{display:grid;gap:8px}
+.take-controls input,.take-controls textarea,.take-controls select{width:100%;margin:0;padding:9px;border:1px solid #cbd4cb;border-radius:8px;background:#fff;color:inherit;font:inherit;font-size:13px}
+.take-controls textarea{resize:vertical;line-height:1.45}
+.playlist-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
+.playlist-controls label{display:grid;gap:5px;color:#47564e;font-size:12px;font-weight:750}
+.upload-button{justify-self:start;padding:9px 12px;font-size:13px;font-weight:750}
+.upload-status{margin:0;color:#536058;font-size:12px;overflow-wrap:anywhere}
 .repertoire-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
 .repertoire-card{position:relative;padding:18px;border:1px solid var(--border);border-radius:12px;background:#fff}
 .repertoire-card.is-highlighted{border:2px solid #769a7d;background:#f5fbf3;box-shadow:0 8px 24px #49664e1a}
@@ -177,7 +244,12 @@ input:focus-visible,button:focus-visible,a:focus-visible,#book-title:focus-visib
   .practice-header h1{font-size:28px}
   .practice-meta{justify-content:flex-start;margin-top:16px}
   .current-program{padding:17px}
-  .repertoire-grid{grid-template-columns:1fr}
+  .repertoire-grid,.practice-cards{grid-template-columns:1fr}
+  .assignment-option-fields{grid-template-columns:1fr 1fr}
+  .today-heading,.today-task,.summary-entry{align-items:flex-start;flex-direction:column}
+  .practice-runner{padding:16px}
+  .session-title-row{align-items:flex-start}
+  .youtube-player{border-radius:7px}
   .practice-table-wrap{overflow:visible;border:0}
   .practice-table,.practice-table tbody,.practice-table tr,.practice-table td{display:block;width:100%}
   .practice-table{min-width:0}
