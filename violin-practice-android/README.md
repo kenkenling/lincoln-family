@@ -2,16 +2,17 @@
 
 Standalone Android app package for a reusable music-practice planner. It is intentionally separate from the Lincoln Family web portal and does not contain Lincoln's encrypted family library, passphrase, OAuth client ID, or private account data.
 
-## Current starter build
+## Current build
 
 - Three screens: Today, Assign, and Summary.
-- Add assignments with YouTube links or phone video URIs, optional start/end seconds, and repetition counts.
-- Persist tasks, completed task IDs, elapsed practice time, and an event log on the device.
-- Start a practice session with the teacher video and a live front-camera preview on the same screen.
-- Record a take with CameraX, save it in Movies / Practice Partner, review it, and share it through the Android share sheet.
-- Import/export the simple CSV assignment format (title, source, start_seconds, end_seconds, repetitions), which can be opened in Excel and Google Sheets.
+- Create date-scoped assignments from YouTube links or device video URIs, with optional clips, coaching notes, sheet music, explanations, and repetition targets.
+- Track daily repetitions, completed assignments, elapsed active-practice time, and a dated event log.
+- Practice in Listen, Listen & Play, or Play Yourself mode with the teacher reference and camera on one guided screen.
+- Start every recording explicitly after a three-second countdown. Takes remain in app-specific storage until they are watched, shared, or deleted.
+- Import legacy five-column CSV files or the full dated CSV format, with quote-safe round trips for titles and notes.
+- Migrate existing version-one tasks, completion state, timer data, and event history on first launch.
 
-This is an early local-first foundation. The reference stays in its player and is not copied into the recording. The share sheet can pass a saved take to compatible apps; direct YouTube API upload, direct Google Sheets API access, XLSX parsing, multi-device sync, parent/learner accounts, and cloud backups are not yet included.
+This is a local-first, single-device app. The reference stays in its player and is not copied into the learner's recording. The Android share sheet can pass a selected take to compatible apps, but recordings are never uploaded automatically. Direct YouTube API upload, Google Sheets API access, XLSX parsing, multi-device sync, parent/learner accounts, and cloud backups are not included.
 
 ## Product and policy gates
 
@@ -19,4 +20,10 @@ Before releasing YouTube playback/upload broadly, decide and document the app's 
 
 ## Build
 
-Open this directory in Android Studio or run `./gradlew :app:assembleDebug`. The Android application ID is `com.practicepartner.music`.
+Use JDK 21 and install Android SDK Platform 37.2. Open this directory in Android Studio or run:
+
+```bash
+./gradlew testDebugUnitTest lintDebug :app:assembleDebug
+```
+
+The Android application ID is `com.practicepartner.music`. The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
