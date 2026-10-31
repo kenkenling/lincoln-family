@@ -2,6 +2,8 @@ package com.practicepartner.music
 
 import android.app.DatePickerDialog
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -14,8 +16,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -27,6 +32,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,10 +47,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import java.text.DateFormat
 import java.time.LocalDate
@@ -83,65 +93,140 @@ data class AssignmentForm(
 @Composable
 fun TodayPage(
     state: PracticeUiState,
+    studentName: String,
     onSelectMode: (PracticeMode) -> Unit,
     onPractice: (PracticeTask) -> Unit,
     onToggleCompleted: (PracticeTask) -> Unit,
 ) {
     val progress = state.todayProgress
+    val completedCount = state.todayTasks.count { it.id in progress.completedTaskIds }
+    val allComplete = state.todayTasks.isNotEmpty() &&
+        completedCount == state.todayTasks.size
+    val nextTask = state.todayTasks.firstOrNull { it.id !in progress.completedTaskIds }
+        ?: state.todayTasks.firstOrNull()
+
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column {
-                Text(
-                    "Choose a practice mode",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(9.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+            TodaySkyHero(
+                studentName = studentName,
+                date = state.currentDate,
+                nextTask = nextTask,
+                selectedMode = state.mode,
+                completedCount = completedCount,
+                totalCount = state.todayTasks.size,
+                allComplete = allComplete,
+                onStart = { nextTask?.let(onPractice) },
+            )
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = CloudWhite.copy(alpha = 0.88f),
+                ),
+                shape = RoundedCornerShape(24.dp),
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    PracticeMode.entries.forEach { option ->
-                        FilterChip(
-                            selected = state.mode == option,
-                            onClick = { onSelectMode(option) },
-                            label = { Text(option.label) },
-                        )
+                    Text(
+                        "Pick your practice style",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(
+                        "You can change this before starting any music mission.",
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        PracticeMode.entries.forEach { option ->
+                            FilterChip(
+                                selected = state.mode == option,
+                                onClick = { onSelectMode(option) },
+                                leadingIcon = {
+                                    Text(option.kidEmoji(), fontSize = 16.sp)
+                                },
+                                label = { Text(option.kidLabel()) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = CloudBlue.copy(alpha = 0.7f),
+                                    selectedContainerColor = SunYellow,
+                                    selectedLabelColor = Ink,
+                                ),
+                            )
+                        }
                     }
                 }
+            }
+        }
+
+        if (state.todayTasks.isNotEmpty()) {
+            item {
+                Text(
+                    "Today’s music missions",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Ink,
+                )
             }
         }
 
         if (state.todayTasks.isEmpty()) {
             item {
                 EmptyCard(
-                    "No assignments for today",
-                    "A parent can create today’s plan in the Assign tab.",
+                    "No music missions yet",
+                    "Ask a grown-up to add today’s plan from the small settings button.",
                 )
             }
         }
 
-        items(state.todayTasks, key = { it.id }) { task ->
+        itemsIndexed(state.todayTasks, key = { _, task -> task.id }) { index, task ->
             val completedRepetitions = progress.repetitionsFor(task.id)
             val completed = task.id in progress.completedTaskIds
             val needsReference = task.sourceType == SourceType.LOCAL && task.source.isBlank()
             Card(
-                colors = CardDefaults.cardColors(containerColor = Paper),
-                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (completed) MintCloud else CloudWhite,
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                shape = RoundedCornerShape(26.dp),
             ) {
                 Column(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    Modifier.fillMaxWidth().padding(17.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Surface(
+                            color = if (completed) SunYellow else CloudBlue,
+                            shape = CircleShape,
+                        ) {
+                            Box(
+                                Modifier.size(44.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    if (completed) "✓" else "${index + 1}",
+                                    color = Ink,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                )
+                            }
+                        }
                         Column(Modifier.weight(1f)) {
                             Text(
                                 task.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
                             )
                             Text(
                                 "${timeLabel(task.startSeconds)}–" +
@@ -151,16 +236,23 @@ fun TodayPage(
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        if (completed) {
-                            Icon(Icons.Default.CheckCircle, "Completed", tint = Forest)
-                        }
                     }
                     if (task.coachNote.isNotBlank()) {
-                        Text("Coach focus: ${task.coachNote}", color = Ink)
+                        Surface(
+                            color = CloudBlue.copy(alpha = 0.72f),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Text(
+                                "Coach tip: ${task.coachNote}",
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                color = Ink,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
                     if (needsReference) {
                         Text(
-                            "Reference video needs to be reattached in Assign before practice.",
+                            "Ask a grown-up to reattach this reference video before practice.",
                             color = Danger,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -170,10 +262,13 @@ fun TodayPage(
                             onClick = { onPractice(task) },
                             enabled = !needsReference,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = Forest),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (completed) DeepSky else SunYellow,
+                                contentColor = if (completed) Paper else Ink,
+                            ),
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = null)
-                            Text(" Practice")
+                            Text(if (completed) " Play again" else " Start")
                         }
                         TextButton(onClick = { onToggleCompleted(task) }) {
                             Text(if (completed) "Reopen" else "Mark done")
@@ -184,6 +279,121 @@ fun TodayPage(
         }
         item { Spacer(Modifier.height(8.dp)) }
     }
+}
+
+@Composable
+private fun TodaySkyHero(
+    studentName: String,
+    date: String,
+    nextTask: PracticeTask?,
+    selectedMode: PracticeMode,
+    completedCount: Int,
+    totalCount: Int,
+    allComplete: Boolean,
+    onStart: () -> Unit,
+) {
+    val firstName = studentName.trim().substringBefore(' ').ifBlank { "Musician" }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(30.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(DeepSky, SkyBlue),
+                ),
+            )
+            .padding(20.dp),
+    ) {
+        Text(
+            "☁",
+            modifier = Modifier.align(Alignment.TopEnd),
+            color = Paper.copy(alpha = 0.22f),
+            fontSize = 72.sp,
+        )
+        Text(
+            "☀",
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 8.dp),
+            color = SunYellow,
+            fontSize = 34.sp,
+        )
+        Column(
+            Modifier.fillMaxWidth().padding(end = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Text(
+                "Hi, $firstName!",
+                color = Paper,
+                style = MaterialTheme.typography.headlineMedium,
+                fontFamily = FontFamily.Cursive,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                friendlyFullDate(date),
+                color = Paper.copy(alpha = 0.82f),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (nextTask == null) {
+                Text(
+                    "Your music missions will appear here.",
+                    color = Paper,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    "A grown-up can add them from the settings cloud.",
+                    color = Paper.copy(alpha = 0.84f),
+                )
+            } else {
+                Text(
+                    if (allComplete) {
+                        "Amazing—today’s missions are complete!"
+                    } else {
+                        "Your next music mission"
+                    },
+                    color = Paper.copy(alpha = 0.84f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    nextTask.title,
+                    color = Paper,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                Text(
+                    "${selectedMode.kidEmoji()} ${selectedMode.kidLabel()} · " +
+                        "$completedCount of $totalCount finished",
+                    color = Paper.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Button(
+                    onClick = onStart,
+                    modifier = Modifier.fillMaxWidth().padding(top = 7.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SunYellow,
+                        contentColor = Ink,
+                    ),
+                    shape = RoundedCornerShape(18.dp),
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Text(
+                        if (allComplete) " Play it again" else " Start now",
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun PracticeMode.kidLabel(): String = when (this) {
+    PracticeMode.LISTEN -> "Listen first"
+    PracticeMode.LISTEN_AND_PLAY -> "Play along"
+    PracticeMode.PLAY_YOURSELF -> "Play solo"
+}
+
+private fun PracticeMode.kidEmoji(): String = when (this) {
+    PracticeMode.LISTEN -> "👂"
+    PracticeMode.LISTEN_AND_PLAY -> "🎻"
+    PracticeMode.PLAY_YOURSELF -> "⭐"
 }
 
 @Composable

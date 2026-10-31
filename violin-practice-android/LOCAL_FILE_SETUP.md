@@ -1,10 +1,10 @@
 # Local Excel file setup
 
-Practice Partner 0.7.1 keeps its profile, practice history, and recordings local. It can also create and update one local Excel `.xlsx` file for assignments and readable snapshots.
+Practice Partner 0.8.0 keeps its profile, practice history, and recordings local. It can also create and update one local Excel `.xlsx` file for assignments and readable snapshots.
 
 ## Configure the file
 
-1. Open **Profile & local file**.
+1. Open the small settings button, then choose **Profile & local file**.
 2. Save the student name and instrument.
 3. Tap **Create local Excel file**.
 4. Choose a device location such as **Downloads** or **Documents**, then save the suggested name.

@@ -14,7 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,15 +23,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -47,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -59,18 +56,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(
-                colorScheme = androidx.compose.material3.lightColorScheme(
-                    primary = Forest,
-                    onPrimary = Paper,
-                    secondary = Amber,
-                    background = Cream,
-                    surface = Paper,
-                    onSurface = Ink,
-                    onBackground = Ink,
-                    error = Danger,
-                ),
-            ) {
+            PracticePartnerTheme {
                 PracticeApp(practiceViewModel)
             }
         }
@@ -97,6 +83,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         mutableStateOf(AssignmentForm(assignedDate = state.currentDate))
     }
     var showProfileDialog by rememberSaveable { mutableStateOf(false) }
+    var showGrownUpTools by rememberSaveable { mutableStateOf(false) }
     var csvDatePending by rememberSaveable { mutableStateOf(state.currentDate) }
 
     LaunchedEffect(state.message) {
@@ -230,125 +217,131 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             }
         }
     }
-    BackHandler(enabled = state.activeTaskId != null) {
-        viewModel.finishPractice()
+    BackHandler(enabled = state.activeTaskId != null || state.page != AppPage.TODAY) {
+        if (state.activeTaskId != null) {
+            viewModel.finishPractice()
+        } else {
+            viewModel.setPage(AppPage.TODAY)
+        }
     }
 
-    Scaffold(
-        containerColor = Cream,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            if (state.activeTaskId == null) {
-                NavigationBar(containerColor = Paper) {
-                    NavigationBarItem(
-                        selected = state.page == AppPage.TODAY,
-                        onClick = { viewModel.setPage(AppPage.TODAY) },
-                        icon = { Icon(Icons.Default.Home, contentDescription = "Today") },
-                        label = { Text("Today") },
-                    )
-                    NavigationBarItem(
-                        selected = state.page == AppPage.ASSIGN,
-                        onClick = { viewModel.setPage(AppPage.ASSIGN) },
-                        icon = {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Assignment,
-                                contentDescription = "Assign",
-                            )
-                        },
-                        label = { Text("Assign") },
-                    )
-                    NavigationBarItem(
-                        selected = state.page == AppPage.SUMMARY,
-                        onClick = { viewModel.setPage(AppPage.SUMMARY) },
-                        icon = { Icon(Icons.Default.BarChart, contentDescription = "Summary") },
-                        label = { Text("Summary") },
-                    )
-                }
-            }
-        },
-    ) { insets ->
-        Column(Modifier.fillMaxSize().padding(insets)) {
-            AppHeader(
-                state = state,
-                fileState = viewModel.localFileState,
-                onOpenProfile = { showProfileDialog = true },
-            )
-            val activeTask = state.activeTask
-            if (activeTask != null) {
-                PracticeSessionPage(
+    SkyAppBackground {
+        Scaffold(
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { insets ->
+            Column(Modifier.fillMaxSize().padding(insets)) {
+                AppHeader(
                     state = state,
-                    task = activeTask,
-                    studentName = viewModel.studentProfile.name,
-                    onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
-                    onRecordingChanged = viewModel::setRecordingActive,
-                    onCompleteRepetition = { viewModel.recordRepetition(activeTask) },
-                    onResumeTimer = viewModel::resumeActivePractice,
-                    onOpenUri = ::openUri,
-                    onShare = ::shareVideo,
-                    onDeleteRecording = { recording -> viewModel.deleteRecording(recording.path) },
-                    onFinish = { viewModel.finishPractice() },
+                    onOpenGrownUpTools = { showGrownUpTools = true },
+                    onReturnToToday = { viewModel.setPage(AppPage.TODAY) },
                 )
-            } else {
-                when (state.page) {
-                    AppPage.TODAY -> TodayPage(
+                val activeTask = state.activeTask
+                if (activeTask != null) {
+                    PracticeSessionPage(
                         state = state,
-                        onSelectMode = viewModel::setMode,
-                        onPractice = viewModel::startPractice,
-                        onToggleCompleted = viewModel::toggleCompleted,
-                    )
-                    AppPage.ASSIGN -> AssignmentPage(
-                        state = state,
-                        form = form,
-                        onFormChanged = { form = it },
-                        onPickVideo = { pickVideo.launch(arrayOf("video/*")) },
-                        onPickSheetMusic = {
-                            pickSheetMusic.launch(
-                                arrayOf("application/pdf", "image/*"),
-                            )
-                        },
-                        onImport = {
-                            csvDatePending = form.assignedDate
-                            importCsv.launch(
-                                arrayOf("text/csv", "text/*", "application/vnd.ms-excel"),
-                            )
-                        },
-                        onExport = {
-                            csvDatePending = form.assignedDate
-                            exportCsv.launch("practice-assignment-${form.assignedDate}.csv")
-                        },
-                        onAdd = {
-                            val added = viewModel.saveAssignment(
-                                taskId = form.editingTaskId,
-                                assignedDateText = form.assignedDate,
-                                titleText = form.title,
-                                sourceText = form.source,
-                                startText = form.start,
-                                endText = form.end,
-                                repetitionsText = form.repetitions,
-                                coachNote = form.coachNote,
-                                whyImportant = form.whyImportant,
-                                sheetMusicUri = form.sheetMusicUri,
-                            )
-                            if (added) {
-                                form = AssignmentForm(assignedDate = form.assignedDate)
-                            }
-                        },
-                        onRemove = viewModel::removeTask,
-                    )
-                    AppPage.SUMMARY -> SummaryPage(
-                        state = state,
-                        onPreviousDate = viewModel::showPreviousSummaryDate,
-                        onNextDate = viewModel::showNextSummaryDate,
-                        onToday = viewModel::showTodaySummary,
+                        task = activeTask,
+                        studentName = viewModel.studentProfile.name,
+                        onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
+                        onRecordingChanged = viewModel::setRecordingActive,
+                        onCompleteRepetition = { viewModel.recordRepetition(activeTask) },
+                        onResumeTimer = viewModel::resumeActivePractice,
                         onOpenUri = ::openUri,
                         onShare = ::shareVideo,
-                        onDeleteRecording = { event ->
-                            event.videoPath?.let(viewModel::deleteRecording) ?: false
+                        onDeleteRecording = { recording ->
+                            viewModel.deleteRecording(recording.path)
                         },
+                        onFinish = { viewModel.finishPractice() },
                     )
+                } else {
+                    when (state.page) {
+                        AppPage.TODAY -> TodayPage(
+                            state = state,
+                            studentName = viewModel.studentProfile.name,
+                            onSelectMode = viewModel::setMode,
+                            onPractice = viewModel::startPractice,
+                            onToggleCompleted = viewModel::toggleCompleted,
+                        )
+                        AppPage.ASSIGN -> AssignmentPage(
+                            state = state,
+                            form = form,
+                            onFormChanged = { form = it },
+                            onPickVideo = { pickVideo.launch(arrayOf("video/*")) },
+                            onPickSheetMusic = {
+                                pickSheetMusic.launch(
+                                    arrayOf("application/pdf", "image/*"),
+                                )
+                            },
+                            onImport = {
+                                csvDatePending = form.assignedDate
+                                importCsv.launch(
+                                    arrayOf("text/csv", "text/*", "application/vnd.ms-excel"),
+                                )
+                            },
+                            onExport = {
+                                csvDatePending = form.assignedDate
+                                exportCsv.launch(
+                                    "practice-assignment-${form.assignedDate}.csv",
+                                )
+                            },
+                            onAdd = {
+                                val added = viewModel.saveAssignment(
+                                    taskId = form.editingTaskId,
+                                    assignedDateText = form.assignedDate,
+                                    titleText = form.title,
+                                    sourceText = form.source,
+                                    startText = form.start,
+                                    endText = form.end,
+                                    repetitionsText = form.repetitions,
+                                    coachNote = form.coachNote,
+                                    whyImportant = form.whyImportant,
+                                    sheetMusicUri = form.sheetMusicUri,
+                                )
+                                if (added) {
+                                    form = AssignmentForm(assignedDate = form.assignedDate)
+                                }
+                            },
+                            onRemove = viewModel::removeTask,
+                        )
+                        AppPage.SUMMARY -> SummaryPage(
+                            state = state,
+                            onPreviousDate = viewModel::showPreviousSummaryDate,
+                            onNextDate = viewModel::showNextSummaryDate,
+                            onToday = viewModel::showTodaySummary,
+                            onOpenUri = ::openUri,
+                            onShare = ::shareVideo,
+                            onDeleteRecording = { event ->
+                                event.videoPath?.let(viewModel::deleteRecording) ?: false
+                            },
+                        )
+                    }
                 }
             }
         }
+    }
+
+    if (showGrownUpTools) {
+        GrownUpToolsDialog(
+            currentPage = state.page,
+            studentName = viewModel.studentProfile.name,
+            onOpenToday = {
+                showGrownUpTools = false
+                viewModel.setPage(AppPage.TODAY)
+            },
+            onOpenAssignments = {
+                showGrownUpTools = false
+                viewModel.setPage(AppPage.ASSIGN)
+            },
+            onOpenSummary = {
+                showGrownUpTools = false
+                viewModel.setPage(AppPage.SUMMARY)
+            },
+            onOpenProfile = {
+                showGrownUpTools = false
+                showProfileDialog = true
+            },
+            onDismiss = { showGrownUpTools = false },
+        )
     }
 
     if (showProfileDialog) {
@@ -375,59 +368,73 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
 @Composable
 private fun AppHeader(
     state: PracticeUiState,
-    fileState: LocalFileUiState,
-    onOpenProfile: () -> Unit,
+    onOpenGrownUpTools: () -> Unit,
+    onReturnToToday: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column {
-            Text(
-                "PRACTICE PARTNER",
-                style = MaterialTheme.typography.labelSmall,
-                color = Forest,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                if (state.activeTaskId != null) {
-                    "Practice Session"
-                } else {
-                    when (state.page) {
-                        AppPage.ASSIGN -> "Parent Assignment"
-                        AppPage.SUMMARY -> "Practice Summary"
-                        AppPage.TODAY -> "Today’s Practice"
-                    }
-                },
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        Box {
+        if (state.activeTaskId == null && state.page != AppPage.TODAY) {
             IconButton(
-                onClick = onOpenProfile,
-                modifier = Modifier.size(44.dp).background(Sage, CircleShape),
+                onClick = onReturnToToday,
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(CloudWhite.copy(alpha = 0.9f), CircleShape),
             ) {
                 Icon(
-                    Icons.Default.Person,
-                    contentDescription = "Profile and local file",
-                    tint = Forest,
+                    Icons.Default.Home,
+                    contentDescription = "Back to today’s practice",
+                    tint = DeepSky,
                 )
             }
-            if (!fileState.fileUri.isNullOrBlank()) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(11.dp)
-                        .background(
-                            when {
-                                fileState.status == LocalFileStatus.ERROR -> Danger
-                                fileState.status == LocalFileStatus.READY -> Forest
-                                else -> Amber
-                            },
-                            CircleShape,
-                        ),
+        }
+        Column(
+            Modifier.weight(1f).padding(start = 8.dp),
+        ) {
+            Text(
+                "Practice Partner",
+                style = MaterialTheme.typography.labelLarge,
+                color = DeepSky,
+                fontFamily = FontFamily.Cursive,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                when {
+                    state.activeTaskId != null -> "Let’s make music!"
+                    state.page == AppPage.ASSIGN -> "Plan Practice"
+                    state.page == AppPage.SUMMARY -> "Practice Story"
+                    else -> "Today’s Practice"
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                color = Ink,
+                fontWeight = FontWeight.ExtraBold,
+            )
+        }
+        if (state.activeTaskId != null) {
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .background(SunYellow, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.MusicNote,
+                    contentDescription = null,
+                    tint = Ink,
+                )
+            }
+        } else {
+            IconButton(
+                onClick = onOpenGrownUpTools,
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(CloudWhite.copy(alpha = 0.94f), CircleShape),
+            ) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Grown-up tools",
+                    tint = DeepSky,
                 )
             }
         }
