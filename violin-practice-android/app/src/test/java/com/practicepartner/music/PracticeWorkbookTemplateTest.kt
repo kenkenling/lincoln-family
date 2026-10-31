@@ -98,6 +98,8 @@ class PracticeWorkbookTemplateTest {
 
     @Test
     fun workbookRowsKeepPracticeMetadataButRemovePrivateDevicePaths() {
+        val recordingFileName =
+            "2026-10-31 - Lincoln - Shifting - Take 01.mp4"
         val localTask = PracticeTask(
             id = "local-task",
             assignedDate = "2026-10-31",
@@ -130,18 +132,23 @@ class PracticeWorkbookTemplateTest {
                     atMillis = 1_798_000_000_000,
                     videoUri = "content://private/take",
                     videoPath = "/data/user/0/private/take.mp4",
+                    videoFileName = recordingFileName,
                 ),
             ),
         )
 
-        val rendered = PracticeWorkbookTemplate.sheets(
+        val sheets = PracticeWorkbookTemplate.sheets(
             profile = StudentProfile(id = "profile-id"),
             snapshot = snapshot,
             updatedAtMillis = 1_798_000_001_000,
-        ).flatMap(WorkbookSheet::rows).flatten().joinToString("|")
+        )
+        val rendered = sheets.flatMap(WorkbookSheet::rows).flatten().joinToString("|")
+        val practiceLog = sheets.single { it.name == "Practice Log" }
 
         assertTrue(rendered.contains("Relax the thumb."))
         assertTrue(rendered.contains("https://youtu.be/VZIWCt-jW6g"))
+        assertTrue(rendered.contains(recordingFileName))
+        assertEquals(recordingFileName, practiceLog.rows[1].last())
         assertFalse(rendered.contains("content://private"))
         assertFalse(rendered.contains("/data/user/0"))
     }

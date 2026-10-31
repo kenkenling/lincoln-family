@@ -110,6 +110,7 @@ data class PracticeEvent(
     val atMillis: Long,
     val videoUri: String? = null,
     val videoPath: String? = null,
+    val videoFileName: String? = null,
 )
 
 data class PracticeSnapshot(
@@ -121,6 +122,7 @@ data class PracticeSnapshot(
 data class RecordingFile(
     val uri: String,
     val path: String,
+    val fileName: String,
 )
 
 data class PracticeUiState(

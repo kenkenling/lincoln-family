@@ -2,13 +2,14 @@
 
 Practice Partner is a simple parent-to-child violin-practice app. It is separate from the Lincoln Family web portal and is local-first: recordings and device file paths remain private unless a parent explicitly shares or exports something.
 
-## Version 0.7.0 workflow
+## Version 0.7.1 workflow
 
 - **Today:** choose Listen, Listen & Play, or Play Yourself; follow the assigned clip; record repetitions; and mark work complete.
 - **Assign:** create, edit, move, remove, import, or export assignments for any date. Sheet music is optional.
 - **Summary:** browse previous practice dates, elapsed practice time, repetitions, completion, and saved takes.
 - Practice time pauses when the app leaves the screen and resumes when the active session returns.
 - Camera and microphone permission can be requested again. Recording deletion requires confirmation and removes both the managed file and its log entry.
+- Recorded takes use sortable names such as `2026-10-31 - Lincoln - Boreas Violin 2 - Take 01.mp4`. The same title is supplied to Android Share for manual YouTube uploads.
 - The app keeps a last-known-good local snapshot and reports when damaged records were recovered or skipped.
 - CSV export removes private local URIs. Imported device-video assignments remain as reattachment placeholders instead of pretending the old URI is portable.
 
@@ -38,7 +39,7 @@ The workbook contains:
 
 See [LOCAL_FILE_SETUP.md](LOCAL_FILE_SETUP.md).
 
-Recordings, private filesystem paths, local video URIs, and local sheet-music URIs are excluded from Excel. Recorded practice takes stay inside Practice Partner and use Android Share only when a parent chooses. Teacher YouTube reference links inside assignments remain available, but there is no YouTube account or channel connection.
+Video content, private filesystem paths, local video URIs, and local sheet-music URIs are excluded from Excel. The safe recording filename is included in `Practice Log` so takes can be matched with manually shared or uploaded copies. Recorded practice takes stay inside Practice Partner and use Android Share only when a parent chooses. Teacher YouTube reference links inside assignments remain available, but there is no YouTube account or channel connection.
 
 When upgrading from the older cloud-connection build, retired Drive and YouTube profile metadata is removed and the local workbook must be configured once.
 

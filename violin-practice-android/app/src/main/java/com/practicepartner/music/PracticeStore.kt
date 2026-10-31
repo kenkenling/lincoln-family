@@ -167,6 +167,7 @@ class PracticeStore(context: Context) {
             (0 until rows.length()).map { index ->
                 val row = rows.getJSONObject(index)
                 val atMillis = row.optLong("atMillis", System.currentTimeMillis())
+                val videoPath = row.optNullableString("videoPath")
                 PracticeEvent(
                     id = UUID.randomUUID().toString(),
                     date = dateKeyForMillis(atMillis),
@@ -175,6 +176,8 @@ class PracticeStore(context: Context) {
                     event = row.optString("event"),
                     atMillis = atMillis,
                     videoUri = row.optNullableString("videoUri"),
+                    videoPath = videoPath,
+                    videoFileName = recordingFileNameFromPath(videoPath),
                 )
             }
         }.getOrDefault(emptyList())
@@ -190,7 +193,7 @@ class PracticeStore(context: Context) {
     }
 
     private fun encodeSnapshot(snapshot: PracticeSnapshot): JSONObject = JSONObject().apply {
-        put("version", 2)
+        put("version", 3)
         put("tasks", JSONArray().apply {
             snapshot.tasks.forEach { task ->
                 put(JSONObject().apply {
@@ -229,6 +232,7 @@ class PracticeStore(context: Context) {
                     put("atMillis", event.atMillis)
                     put("videoUri", event.videoUri ?: JSONObject.NULL)
                     put("videoPath", event.videoPath ?: JSONObject.NULL)
+                    put("videoFileName", event.videoFileName ?: JSONObject.NULL)
                 })
             }
         })
@@ -307,6 +311,7 @@ class PracticeStore(context: Context) {
             runCatching {
                 val row = eventRows.getJSONObject(index)
                 val atMillis = row.optLong("atMillis", System.currentTimeMillis())
+                val videoPath = row.optNullableString("videoPath")
                 PracticeEvent(
                     id = row.optString("id").ifBlank { UUID.randomUUID().toString() },
                     date = row.optString("date").ifBlank { dateKeyForMillis(atMillis) },
@@ -315,7 +320,9 @@ class PracticeStore(context: Context) {
                     event = row.optString("event"),
                     atMillis = atMillis,
                     videoUri = row.optNullableString("videoUri"),
-                    videoPath = row.optNullableString("videoPath"),
+                    videoPath = videoPath,
+                    videoFileName = row.optNullableString("videoFileName")
+                        ?: recordingFileNameFromPath(videoPath),
                 )
             }.getOrElse {
                 skippedRecords += 1

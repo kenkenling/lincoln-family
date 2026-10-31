@@ -681,8 +681,9 @@ class PracticeViewModel(
             message = "Practice take saved privately",
             videoUri = recording.uri,
             videoPath = recording.path,
+            videoFileName = recording.fileName,
         )
-        setMessage("Take saved privately inside Practice Partner. Share it only when ready.")
+        setMessage("Saved ${recording.fileName}. Share it only when ready.")
     }
 
     fun deleteRecording(videoPath: String): Boolean {
@@ -760,6 +761,7 @@ class PracticeViewModel(
         message: String,
         videoUri: String? = null,
         videoPath: String? = null,
+        videoFileName: String? = null,
     ) {
         val now = wallClock()
         val event = PracticeEvent(
@@ -771,6 +773,7 @@ class PracticeViewModel(
             atMillis = now,
             videoUri = videoUri,
             videoPath = videoPath,
+            videoFileName = videoFileName,
         )
         var droppedRecordingPaths = emptySet<String>()
         updateSnapshot { snapshot ->
@@ -922,7 +925,7 @@ class PracticeViewModel(
                 candidate.path.startsWith(root.path + File.separator)
         }
         return candidate.takeIf {
-            withinManagedDirectory && it.name.startsWith("PracticePartner-") && it.extension == "mp4"
+            withinManagedDirectory && isManagedPracticeRecordingFileName(it.name)
         }
     }
 

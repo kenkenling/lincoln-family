@@ -510,12 +510,13 @@ fun AssignmentPage(
 fun PracticeSessionPage(
     state: PracticeUiState,
     task: PracticeTask,
+    studentName: String,
     onRecordingSaved: (RecordingFile) -> Unit,
     onRecordingChanged: (Boolean) -> Unit,
     onCompleteRepetition: () -> Unit,
     onResumeTimer: () -> Unit,
     onOpenUri: (Uri, String) -> Unit,
-    onShare: (Uri) -> Unit,
+    onShare: (Uri, String?) -> Unit,
     onDeleteRecording: (RecordingFile) -> Boolean,
     onFinish: () -> Unit,
 ) {
@@ -523,6 +524,17 @@ fun PracticeSessionPage(
     var pendingDelete by remember(task.id) { mutableStateOf<RecordingFile?>(null) }
     val completedRepetitions = state.todayProgress.repetitionsFor(task.id)
     val sheetMusicUri = task.sheetMusicUri
+    val nextTakeNumber = nextRecordingTakeNumber(
+        events = state.todayEvents,
+        practiceDate = state.currentDate,
+        taskId = task.id,
+    )
+    val recordingFileName = practiceRecordingFileName(
+        practiceDate = state.currentDate,
+        studentName = studentName,
+        assignmentTitle = task.title,
+        takeNumber = nextTakeNumber,
+    )
 
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
@@ -636,6 +648,7 @@ fun PracticeSessionPage(
                     fontWeight = FontWeight.Bold,
                 )
                 CameraRecorderPanel(
+                    recordingFileName = recordingFileName,
                     onSaved = { recording ->
                         savedTake = recording
                         onRecordingSaved(recording)
@@ -682,6 +695,12 @@ fun PracticeSessionPage(
                             color = Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        Text(
+                            recording.fileName,
+                            color = Forest,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
                                 onClick = { onOpenUri(recording.uri.toUri(), "video/mp4") },
@@ -690,7 +709,9 @@ fun PracticeSessionPage(
                                 Text("Watch")
                             }
                             Button(
-                                onClick = { onShare(recording.uri.toUri()) },
+                                onClick = {
+                                    onShare(recording.uri.toUri(), recording.fileName)
+                                },
                                 modifier = Modifier.weight(1f),
                             ) {
                                 Text("Share…")
@@ -754,7 +775,7 @@ fun SummaryPage(
     onNextDate: () -> Unit,
     onToday: () -> Unit,
     onOpenUri: (Uri, String) -> Unit,
-    onShare: (Uri) -> Unit,
+    onShare: (Uri, String?) -> Unit,
     onDeleteRecording: (PracticeEvent) -> Boolean,
 ) {
     val progress = state.summaryProgress
@@ -896,6 +917,14 @@ fun SummaryPage(
                         color = Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    event.videoFileName?.let { fileName ->
+                        Text(
+                            fileName,
+                            color = Forest,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                     if (event.videoUri != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
@@ -903,7 +932,11 @@ fun SummaryPage(
                             ) {
                                 Text("Watch")
                             }
-                            Button(onClick = { onShare(event.videoUri.toUri()) }) {
+                            Button(
+                                onClick = {
+                                    onShare(event.videoUri.toUri(), event.videoFileName)
+                                },
+                            ) {
                                 Text("Share…")
                             }
                             if (event.videoPath != null) {

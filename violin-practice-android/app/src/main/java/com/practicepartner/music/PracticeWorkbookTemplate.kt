@@ -8,7 +8,7 @@ data class WorkbookSheet(
 )
 
 object PracticeWorkbookTemplate {
-    const val TEMPLATE_VERSION = "3"
+    const val TEMPLATE_VERSION = "4"
 
     val profileHeaders = listOf(
         "Key",
@@ -55,6 +55,7 @@ object PracticeWorkbookTemplate {
         "Event",
         "Timestamp UTC",
         "Recording Saved",
+        "Recording Filename",
     )
 
     val requiredSheetNames = listOf(
@@ -208,6 +209,7 @@ object PracticeWorkbookTemplate {
                         event.event,
                         Instant.ofEpochMilli(event.atMillis).toString(),
                         if (event.videoUri != null || event.videoPath != null) "Yes" else "No",
+                        event.videoFileName.orEmpty(),
                     ),
                 )
             }

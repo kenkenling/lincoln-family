@@ -1,6 +1,7 @@
 package com.practicepartner.music
 
 import android.app.Activity
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -130,10 +131,20 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             .onFailure { viewModel.setMessage("No app is available to open this file.") }
     }
 
-    fun shareVideo(uri: Uri) {
+    fun shareVideo(uri: Uri, fileName: String?) {
+        val title = fileName?.removeSuffix(".mp4")?.takeIf(String::isNotBlank)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "video/mp4"
             putExtra(Intent.EXTRA_STREAM, uri)
+            if (title != null) {
+                putExtra(Intent.EXTRA_TITLE, title)
+                putExtra(Intent.EXTRA_SUBJECT, title)
+            }
+            clipData = ClipData.newUri(
+                context.contentResolver,
+                fileName ?: "Practice video",
+                uri,
+            )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         runCatching {
@@ -267,6 +278,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 PracticeSessionPage(
                     state = state,
                     task = activeTask,
+                    studentName = viewModel.studentProfile.name,
                     onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
                     onRecordingChanged = viewModel::setRecordingActive,
                     onCompleteRepetition = { viewModel.recordRepetition(activeTask) },

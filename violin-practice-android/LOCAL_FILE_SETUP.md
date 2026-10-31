@@ -1,6 +1,6 @@
 # Local Excel file setup
 
-Practice Partner 0.7.0 keeps its profile, practice history, and recordings local. It can also create and update one local Excel `.xlsx` file for assignments and readable snapshots.
+Practice Partner 0.7.1 keeps its profile, practice history, and recordings local. It can also create and update one local Excel `.xlsx` file for assignments and readable snapshots.
 
 ## Configure the file
 
@@ -37,12 +37,13 @@ The exact first-row headings are:
 - `Assignments`: `Assignment ID`, `Assigned Date`, `Title`, `Reference Type`, `Reference Link`, `Clip Start Seconds`, `Clip End Seconds`, `Target Repetitions`, `Teacher Note`, `Why Important`, `Sheet Music Link`, `Has Local Sheet Music`
 - `Daily Progress`: `Date`, `Assignment ID`, `Assignment Title`, `Repetitions Completed`, `Target Repetitions`, `Completed`
 - `Daily Summary`: `Date`, `Total Practice Seconds`, `Assignments Completed`, `Assignments Planned`, `Repetitions Completed`
-- `Practice Log`: `Event ID`, `Date`, `Assignment ID`, `Assignment Title`, `Event`, `Timestamp UTC`, `Recording Saved`
+- `Practice Log`: `Event ID`, `Date`, `Assignment ID`, `Assignment Title`, `Event`, `Timestamp UTC`, `Recording Saved`, `Recording Filename`
 
 ## Privacy
 
 - No Google Drive or YouTube account is connected.
 - Android grants access only to the file selected by the parent.
 - Other Excel files are not overwritten.
-- Recordings and private device paths are excluded from Excel.
+- Video content, private device paths, and private content URIs are excluded from Excel.
+- The safe recording filename is included so a take can be matched with a manually shared or uploaded copy.
 - Practice recordings remain in app-managed storage until shared or deleted.

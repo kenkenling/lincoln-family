@@ -177,7 +177,7 @@ fun LocalProfileDialog(
                 }
 
                 Text(
-                    "The file contains Profile, Assignments, Daily Progress, Daily Summary, and Practice Log sheets. Recordings and private device paths are never written into Excel.",
+                    "The file contains Profile, Assignments, Daily Progress, Daily Summary, and Practice Log sheets. Practice Log includes safe recording filenames, but video content and private device paths are never written into Excel.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Muted,
                 )

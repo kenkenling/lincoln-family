@@ -198,6 +198,7 @@ private fun LocalVideoPlayer(task: PracticeTask) {
 
 @Composable
 fun CameraRecorderPanel(
+    recordingFileName: String,
     onSaved: (RecordingFile) -> Unit,
     onRecordingChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -273,7 +274,7 @@ fun CameraRecorderPanel(
         } else {
             File(context.filesDir, "Practice Partner")
         }.apply { mkdirs() }
-        val file = File(directory, "PracticePartner-${System.currentTimeMillis()}.mp4")
+        val file = nextAvailableRecordingFile(directory, recordingFileName)
         val options = FileOutputOptions.Builder(file).build()
         val audioConfig = if (audioPermission) AudioConfig.create(true) else AudioConfig.AUDIO_DISABLED
         try {
@@ -301,7 +302,13 @@ fun CameraRecorderPanel(
                                 file,
                             )
                             recordingMessage = "Take saved privately."
-                            onSaved(RecordingFile(uri.toString(), file.absolutePath))
+                            onSaved(
+                                RecordingFile(
+                                    uri = uri.toString(),
+                                    path = file.absolutePath,
+                                    fileName = file.name,
+                                ),
+                            )
                         } else {
                             file.delete()
                             recordingMessage = "The recording could not be saved (error ${event.error})."
@@ -447,6 +454,11 @@ fun CameraRecorderPanel(
             if (recordingMessage.isNotBlank()) {
                 Text(recordingMessage, color = Muted, style = MaterialTheme.typography.bodySmall)
             }
+            Text(
+                "Video name: $recordingFileName",
+                color = Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
             if (cameraPermission && !audioPermission) {
                 Text(
                     "Microphone access is off; this take will be silent.",
