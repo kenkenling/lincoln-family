@@ -112,8 +112,10 @@ class ExcelWorkbookStore(context: Context) {
             )
             buffer.toByteArray()
         }
-        if (!PracticeWorkbookDetector.matches(ByteArrayInputStream(workbookBytes))) {
-            throw ExcelWorkbookException("The new Excel workbook failed its integrity check.")
+        if (!isValidGeneratedWorkbook(workbookBytes)) {
+            throw ExcelWorkbookException(
+                "The new Excel workbook is missing a required sheet or column heading.",
+            )
         }
 
         try {
@@ -231,13 +233,17 @@ class ExcelWorkbookStore(context: Context) {
     private fun verifySavedWorkbook(uri: Uri): Boolean {
         repeat(3) { attempt ->
             val verified = runCatching {
-                contentResolver.openInputStream(uri)?.use(PracticeWorkbookDetector::matches)
+                readExistingBytes(uri)?.let(::isValidGeneratedWorkbook)
             }.getOrNull() == true
             if (verified) return true
             if (attempt < 2) Thread.sleep(150)
         }
         return false
     }
+
+    private fun isValidGeneratedWorkbook(bytes: ByteArray): Boolean =
+        PracticeWorkbookDetector.matches(ByteArrayInputStream(bytes)) &&
+            XlsxWorkbookReader.hasCurrentTemplateHeaders(ByteArrayInputStream(bytes))
 
     private fun resolveDriveAccountEmail(
         uri: Uri,

@@ -5,8 +5,10 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.time.LocalDate
+import java.util.UUID
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
+import kotlin.math.floor
 
 data class WorkbookAssignment(
     val id: String,
@@ -21,6 +23,7 @@ data class WorkbookAssignment(
     val whyImportant: String,
     val sheetMusicUri: String?,
     val needsSheetMusicReattachment: Boolean,
+    val generatedId: Boolean = false,
 )
 
 data class WorkbookAssignmentImportResult(
@@ -29,13 +32,32 @@ data class WorkbookAssignmentImportResult(
 )
 
 object XlsxWorkbookReader {
+    fun hasCurrentTemplateHeaders(input: InputStream): Boolean = runCatching {
+        val entries = readEntries(input)
+        val workbook = entries["xl/workbook.xml"] ?: return@runCatching false
+        val relationships = entries["xl/_rels/workbook.xml.rels"] ?: return@runCatching false
+        val sharedStrings = entries["xl/sharedStrings.xml"]
+            ?.let(::parseSharedStrings)
+            .orEmpty()
+        val paths = sheetPaths(workbook, relationships)
+
+        PracticeWorkbookTemplate.headersBySheet.all { (sheetName, expectedHeaders) ->
+            val worksheet = paths[sheetName]?.let(entries::get) ?: return@all false
+            val actualHeaders = parseRows(worksheet, sharedStrings)
+                .firstOrNull()
+                ?.map(String::trim)
+                .orEmpty()
+            actualHeaders == expectedHeaders
+        }
+    }.getOrDefault(false)
+
     fun readAssignments(input: InputStream): WorkbookAssignmentImportResult {
         val entries = readEntries(input)
         val workbook = entries["xl/workbook.xml"]
             ?: return failure("The workbook metadata is missing.")
         val relationships = entries["xl/_rels/workbook.xml.rels"]
             ?: return failure("The workbook relationships are missing.")
-        val sheetPath = assignmentSheetPath(workbook, relationships)
+        val sheetPath = sheetPaths(workbook, relationships)["Assignments"]
             ?: return failure("The Assignments worksheet is missing.")
         val worksheet = entries[sheetPath]
             ?: return failure("The Assignments worksheet content is missing.")
@@ -48,22 +70,16 @@ object XlsxWorkbookReader {
         val header = rows.first().mapIndexed { index, value ->
             value.trim().lowercase() to index
         }.toMap()
-        val required = listOf(
-            "assignment id",
-            "assigned date",
-            "title",
-            "reference type",
-            "reference link",
-            "clip start seconds",
-            "clip end seconds",
-            "target repetitions",
-        )
+        val required = PracticeWorkbookTemplate.assignmentHeaders
+            .take(8)
+            .map(String::lowercase)
         if (!required.all(header::containsKey)) {
             return failure("The Assignments worksheet does not use the Practice Partner columns.")
         }
 
         val assignments = mutableListOf<WorkbookAssignment>()
         val errors = mutableListOf<String>()
+        val seenAssignmentIds = mutableSetOf<String>()
         rows.drop(1).forEachIndexed { index, row ->
             if (row.all(String::isBlank)) return@forEachIndexed
             fun field(name: String): String = header[name]
@@ -72,21 +88,24 @@ object XlsxWorkbookReader {
                 .trim()
 
             val rowNumber = index + 2
-            val id = field("assignment id")
-            val date = field("assigned date")
+            val suppliedId = field("assignment id")
+            val id = suppliedId.ifBlank { UUID.randomUUID().toString() }
+            val date = normalizedWorkbookDate(field("assigned date"))
             val title = field("title")
-            val type = runCatching {
-                SourceType.valueOf(field("reference type").uppercase())
-            }.getOrNull()
             val source = field("reference link")
+            val declaredType = field("reference type")
+                .takeIf(String::isNotBlank)
+                ?.let { runCatching { SourceType.valueOf(it.uppercase()) }.getOrNull() }
+            val type = declaredType ?: sourceTypeFor(source)
             val start = field("clip start seconds").ifBlank { "0" }.toIntOrNull()
             val end = field("clip end seconds").takeIf(String::isNotBlank)?.toIntOrNull()
             val repetitions = field("target repetitions").toIntOrNull()
             val error = when {
-                id.isBlank() -> "missing assignment ID"
-                runCatching { LocalDate.parse(date) }.isFailure -> "invalid assigned date"
+                date == null -> "invalid assigned date; use YYYY-MM-DD or an Excel date"
                 title.isBlank() -> "missing title"
-                type == null -> "invalid reference type"
+                field("reference type").isNotBlank() && declaredType == null ->
+                    "invalid reference type"
+                type == null -> "reference type or link is missing"
                 type == SourceType.YOUTUBE && youtubeVideoId(source) == null ->
                     "invalid YouTube reference"
                 type == SourceType.LOCAL && source.isNotBlank() && !source.startsWith("content://") ->
@@ -96,14 +115,16 @@ object XlsxWorkbookReader {
                 end != null && end <= start -> "clip end must be after clip start"
                 repetitions == null || repetitions !in 1..20 ->
                     "target repetitions must be between 1 and 20"
+                id in seenAssignmentIds -> "duplicate assignment ID"
                 else -> null
             }
             if (error != null) {
                 errors += "Assignments row $rowNumber: $error."
             } else {
+                seenAssignmentIds += id
                 assignments += WorkbookAssignment(
                     id = id,
-                    assignedDate = date,
+                    assignedDate = date!!,
                     title = title,
                     sourceType = type!!,
                     source = source,
@@ -115,6 +136,7 @@ object XlsxWorkbookReader {
                     sheetMusicUri = field("sheet music link").takeIf(String::isNotBlank),
                     needsSheetMusicReattachment =
                         field("has local sheet music").equals("yes", true),
+                    generatedId = suppliedId.isBlank(),
                 )
             }
         }
@@ -148,29 +170,48 @@ object XlsxWorkbookReader {
         }
     }
 
-    private fun assignmentSheetPath(
+    private fun sheetPaths(
         workbookBytes: ByteArray,
         relationshipBytes: ByteArray,
-    ): String? {
+    ): Map<String, String> {
         val workbook = parseXml(workbookBytes)
-        val relationshipId = workbook.getElementsByTagNameNS("*", "sheet")
-            .asElements()
-            .firstOrNull { it.getAttribute("name") == "Assignments" }
-            ?.getAttributeNS(OFFICE_RELATIONSHIPS_NS, "id")
-            ?.takeIf(String::isNotBlank)
-            ?: return null
         val relationships = parseXml(relationshipBytes)
-        val target = relationships.getElementsByTagNameNS("*", "Relationship")
+            .getElementsByTagNameNS("*", "Relationship")
             .asElements()
-            .firstOrNull { it.getAttribute("Id") == relationshipId }
-            ?.getAttribute("Target")
-            ?.takeIf(String::isNotBlank)
+            .associate { relationship ->
+                relationship.getAttribute("Id") to relationship.getAttribute("Target")
+            }
+        return workbook.getElementsByTagNameNS("*", "sheet")
+            .asElements()
+            .mapNotNull { sheet ->
+                val name = sheet.getAttribute("name").takeIf(String::isNotBlank)
+                    ?: return@mapNotNull null
+                val relationshipId = sheet
+                    .getAttributeNS(OFFICE_RELATIONSHIPS_NS, "id")
+                    .takeIf(String::isNotBlank)
+                    ?: return@mapNotNull null
+                val target = relationships[relationshipId]
+                    ?.takeIf(String::isNotBlank)
+                    ?: return@mapNotNull null
+                val path = if (target.startsWith('/')) {
+                    target.removePrefix("/")
+                } else {
+                    "xl/${target.removePrefix("./")}"
+                }
+                name to path
+            }
+            .toMap()
+    }
+
+    private fun normalizedWorkbookDate(value: String): String? {
+        val trimmed = value.trim()
+        runCatching { LocalDate.parse(trimmed) }.getOrNull()?.let { return it.toString() }
+        val serial = trimmed.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it >= 1.0 }
             ?: return null
-        return if (target.startsWith('/')) {
-            target.removePrefix("/")
-        } else {
-            "xl/${target.removePrefix("./")}"
-        }
+        return runCatching {
+            EXCEL_DATE_EPOCH.plusDays(floor(serial).toLong()).toString()
+        }.getOrNull()
     }
 
     private fun parseSharedStrings(bytes: ByteArray): List<String> {
@@ -264,3 +305,4 @@ private fun org.w3c.dom.NodeList.asElements(): List<Element> =
 private const val OFFICE_RELATIONSHIPS_NS =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 private const val MAX_READER_BYTES = 20 * 1024 * 1024
+private val EXCEL_DATE_EPOCH = LocalDate.of(1899, 12, 30)

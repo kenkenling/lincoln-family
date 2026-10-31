@@ -29,11 +29,12 @@ class CsvCodecTest {
             idFactory = { "imported-id" },
         )
 
+        assertTrue(CsvCodec.encode(listOf(original)).startsWith("assignment_id,date,title"))
         assertEquals(1, decoded.errors.size)
         assertTrue(decoded.errors.single().contains("sheet music"))
         assertEquals(1, decoded.tasks.size)
         assertEquals(
-            original.copy(id = "imported-id", sheetMusicUri = null),
+            original.copy(sheetMusicUri = null),
             decoded.tasks.single(),
         )
     }

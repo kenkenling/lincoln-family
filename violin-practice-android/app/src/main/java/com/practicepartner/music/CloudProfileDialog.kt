@@ -86,7 +86,7 @@ fun CloudProfileDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    "Set up the student profile and private Excel backup here. Practice screens stay simple.",
+                    "Set up the student profile and private assignment workbook here. Practice screens stay simple.",
                     color = Muted,
                 )
                 OutlinedTextField(
@@ -111,7 +111,7 @@ fun CloudProfileDialog(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "Create a real Excel .xlsx file in Google Drive. Practice Partner verifies both the Drive provider and selected account before writing.",
+                    "Create a real Excel .xlsx file in Google Drive. Assignments can be added in the app and synced to Excel, or edited in Excel and loaded into the app. Practice Partner verifies both the Drive provider and selected account before writing.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Muted,
                 )
@@ -172,7 +172,13 @@ fun CloudProfileDialog(
                         onClick = { saveThen(onSyncExcel) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(if (cloudState.hasUnsyncedChanges) "Save changes now" else "Save workbook now")
+                        Text(
+                            if (cloudState.hasUnsyncedChanges) {
+                                "Sync assignments to Excel"
+                            } else {
+                                "Save workbook snapshot now"
+                            },
+                        )
                     }
                     OutlinedButton(
                         onClick = { saveThen(onLoadExcel) },
@@ -197,7 +203,7 @@ fun CloudProfileDialog(
                     }
                     if (cloudState.hasUnsyncedChanges) {
                         Text(
-                            "Save local changes before loading assignments from Excel. This prevents a remote edit from replacing newer work on this device.",
+                            "Sync app assignment or profile changes before loading assignments from Excel. This prevents a remote edit from replacing newer work on this device.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Muted,
                         )
@@ -205,7 +211,7 @@ fun CloudProfileDialog(
                 }
 
                 Text(
-                    "Changes are backed up automatically after editing or practice stops. The workbook contains Profile, Assignments, Daily Progress, Daily Summary, and Practice Log sheets. Other Excel files are not overwritten. Recordings and private device file paths are never copied. Drive controls the final server upload.",
+                    "Assignments entered in the app sync to Drive after editing. “Load assignments from Excel” imports teacher or parent additions and edits. New workbooks include all required columns on Profile, Assignments, Daily Progress, Daily Summary, and Practice Log. Detailed practice history remains local-first for now; the workbook receives a snapshot when assignments or the profile sync. Other Excel files are not overwritten, and recordings or private device paths are never copied. Drive controls the final server upload.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Muted,
                 )

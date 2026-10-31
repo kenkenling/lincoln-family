@@ -18,6 +18,23 @@ class PracticeWorkbookTemplateTest {
     }
 
     @Test
+    fun everySheetStartsWithTheCompleteRequiredColumnNames() {
+        val sheets = PracticeWorkbookTemplate.sheets(
+            profile = StudentProfile(id = "profile"),
+            snapshot = PracticeSnapshot(),
+            updatedAtMillis = 1_798_000_000_000,
+        )
+
+        sheets.forEach { sheet ->
+            assertEquals(
+                "Unexpected columns for ${sheet.name}",
+                PracticeWorkbookTemplate.headersBySheet.getValue(sheet.name),
+                sheet.rows.first(),
+            )
+        }
+    }
+
+    @Test
     fun dailyPracticeSecondsAppearOncePerDateInsteadOfOncePerAssignment() {
         val tasks = listOf(
             PracticeTask(

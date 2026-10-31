@@ -185,7 +185,7 @@ class PracticeViewModel(
         }
         if (localRevision > lastSyncedRevision) {
             setMessage(
-                "Save local changes to Drive before loading assignments from Excel.",
+                "Sync app assignment or profile changes to Drive before loading Excel assignments.",
             )
             return
         }
@@ -200,16 +200,17 @@ class PracticeViewModel(
                 excelWorkbookStore.readAssignments(uri, studentProfile)
             }.onSuccess { result ->
                 val merge = mergeWorkbookAssignments(result.assignments)
-                if (merge.tasks != uiState.snapshot.tasks) {
-                    updateSnapshot { it.copy(tasks = merge.tasks) }
-                } else {
+                val assignmentsChanged = merge.tasks != uiState.snapshot.tasks
+                val needsIdWriteBack = merge.generatedIdCount > 0
+                if (assignmentsChanged) {
+                    updateSnapshot(syncWorkbook = needsIdWriteBack) {
+                        it.copy(tasks = merge.tasks)
+                    }
+                }
+                if (!needsIdWriteBack) {
                     cloudState = cloudState.copy(
-                        status = if (localRevision > lastSyncedRevision) {
-                            CloudSyncStatus.UNSYNCED
-                        } else {
-                            CloudSyncStatus.CONNECTED
-                        },
-                        hasUnsyncedChanges = localRevision > lastSyncedRevision,
+                        status = CloudSyncStatus.CONNECTED,
+                        hasUnsyncedChanges = false,
                         detail = driveReadyDetail(studentProfile, cloudState.destinationAccountEmail),
                     )
                 }
@@ -219,6 +220,15 @@ class PracticeViewModel(
                         append("Loaded ${merge.loadedCount} assignment")
                         if (merge.loadedCount != 1) append('s')
                         append(" from Excel.")
+                        if (merge.generatedIdCount > 0) {
+                            append(
+                                " Added ${merge.generatedIdCount} missing assignment ID",
+                            )
+                            if (merge.generatedIdCount != 1) append('s')
+                            append("; the app will save ")
+                            append(if (merge.generatedIdCount == 1) "it" else "them")
+                            append(" back to Excel.")
+                        }
                         if (warnings.isNotEmpty()) {
                             append(" Skipped ${warnings.size}: ")
                             append(warnings.take(2).joinToString(" "))
@@ -250,11 +260,12 @@ class PracticeViewModel(
             status = CloudSyncStatus.SYNCING,
             hasUnsyncedChanges = localRevision > lastSyncedRevision,
             detail = when {
-                automatic -> "Automatically updating the Drive workbook…"
-                mode == ExcelWriteMode.CREATE -> "Creating and verifying the Drive workbook…"
+                automatic -> "Automatically syncing assignments to the Drive workbook…"
+                mode == ExcelWriteMode.CREATE ->
+                    "Creating and verifying the Drive workbook and all column headings…"
                 mode == ExcelWriteMode.CONNECT_EXISTING ->
                     "Checking and reconnecting the Drive workbook…"
-                else -> "Saving current practice data to the Drive workbook…"
+                else -> "Saving assignments and the current local snapshot to Drive…"
             },
         )
         viewModelScope.launch {
@@ -292,7 +303,7 @@ class PracticeViewModel(
                     lastSyncedAtMillis = workbook.syncedAtMillis,
                     hasUnsyncedChanges = changedDuringSync,
                     detail = if (changedDuringSync) {
-                        "New local changes are waiting for the next automatic Drive update."
+                        "New assignment or profile changes are waiting for the next automatic Drive update."
                     } else {
                         driveReadyDetail(profileToSync, workbook.destination.accountEmail)
                     },
@@ -301,11 +312,11 @@ class PracticeViewModel(
                     setMessage(
                         when (mode) {
                             ExcelWriteMode.CREATE ->
-                                "Created and verified the Practice Partner workbook for ${workbook.destination.accountEmail}."
+                                "Created and verified the Practice Partner workbook and all sheet columns for ${workbook.destination.accountEmail}."
                             ExcelWriteMode.CONNECT_EXISTING ->
                                 "Reconnected and verified the Drive workbook."
                             ExcelWriteMode.SYNC ->
-                                "Practice data was saved through the Google Drive provider."
+                                "Assignments were synced through the Google Drive provider."
                         },
                     )
                 }
@@ -327,7 +338,7 @@ class PracticeViewModel(
                 )
                 setMessage(
                     if (automatic) {
-                        "Automatic Drive backup needs attention. Open Profile to retry."
+                        "Automatic assignment sync needs attention. Open Profile to retry."
                     } else {
                         "Excel sync failed. Reopen Profile to retry or choose another file."
                     },
@@ -419,7 +430,7 @@ class PracticeViewModel(
             setMessage("This assignment is already on ${friendlyDate(assignedDate)}.")
             return false
         }
-        updateSnapshot { snapshot ->
+        updateSnapshot(syncWorkbook = true) { snapshot ->
             val tasks = if (existingTask == null) {
                 snapshot.tasks + task
             } else {
@@ -458,8 +469,10 @@ class PracticeViewModel(
 
     fun importCsv(text: String, defaultDate: String = uiState.currentDate) {
         val result = CsvCodec.decode(text, defaultDate)
-        val accepted = mutableListOf<PracticeTask>()
+        val merged = uiState.snapshot.tasks.toMutableList()
         val errors = result.errors.toMutableList()
+        val seenImportedIds = mutableSetOf<String>()
+        var acceptedCount = 0
         result.tasks.forEachIndexed { index, imported ->
             val task = if (
                 imported.sheetMusicUri?.startsWith("content://") == true &&
@@ -470,21 +483,41 @@ class PracticeViewModel(
             } else {
                 imported
             }
+            val existingIndex = merged.indexOfFirst { it.id == task.id }
+            val existing = merged.getOrNull(existingIndex)
             when {
+                !seenImportedIds.add(task.id) ->
+                    errors += "Imported row ${index + 2}: duplicate assignment ID."
                 task.sourceType == SourceType.LOCAL && !canReadContentUri(task.source) ->
                     errors += "Imported row ${index + 2}: local reference video is unavailable."
-                isDuplicateTask(task, additionalTasks = accepted) ->
+                existing != null &&
+                    existing.assignedDate != task.assignedDate &&
+                    hasProgressForTask(existing.id) ->
+                    errors +=
+                        "Imported row ${index + 2}: an assignment with progress cannot move dates."
+                merged.any {
+                    it.id != task.id && assignmentKey(it) == assignmentKey(task)
+                } ->
                     errors += "Imported row ${index + 2}: duplicate assignment."
-                else -> accepted += task
+                else -> {
+                    if (existingIndex >= 0) {
+                        merged[existingIndex] = task
+                    } else {
+                        merged += task
+                    }
+                    acceptedCount += 1
+                }
             }
         }
-        if (accepted.isNotEmpty()) {
-            updateSnapshot { snapshot -> snapshot.copy(tasks = snapshot.tasks + accepted) }
+        if (merged != uiState.snapshot.tasks) {
+            updateSnapshot(syncWorkbook = true) { snapshot ->
+                snapshot.copy(tasks = merged)
+            }
         }
         uiState = uiState.copy(
             message = buildString {
-                append("Imported ${accepted.size} assignment")
-                if (accepted.size != 1) append('s')
+                append("Imported ${acceptedCount} assignment")
+                if (acceptedCount != 1) append('s')
                 append('.')
                 if (errors.isNotEmpty()) {
                     append(" Skipped or adjusted ${errors.size}: ")
@@ -504,7 +537,7 @@ class PracticeViewModel(
             return
         }
         if (task.id == uiState.activeTaskId) finishPractice()
-        updateSnapshot { snapshot ->
+        updateSnapshot(syncWorkbook = true) { snapshot ->
             snapshot.copy(
                 tasks = snapshot.tasks.filterNot { it.id == task.id },
                 progressByDate = snapshot.progressByDate.mapValues { (_, progress) ->
@@ -680,12 +713,15 @@ class PracticeViewModel(
         }
     }
 
-    private fun updateSnapshot(transform: (PracticeSnapshot) -> PracticeSnapshot) {
+    private fun updateSnapshot(
+        syncWorkbook: Boolean = false,
+        transform: (PracticeSnapshot) -> PracticeSnapshot,
+    ) {
         val next = transform(uiState.snapshot)
         if (next == uiState.snapshot) return
         store.save(next)
         uiState = uiState.copy(snapshot = next)
-        recordLocalMutation()
+        if (syncWorkbook) recordLocalMutation()
     }
 
     private fun taskFor(id: String?): PracticeTask? = uiState.snapshot.tasks.firstOrNull { it.id == id }
@@ -735,7 +771,7 @@ class PracticeViewModel(
             cloudState.copy(
                 status = CloudSyncStatus.UNSYNCED,
                 hasUnsyncedChanges = true,
-                detail = "Local changes are waiting for the automatic Drive update.",
+                detail = "Assignment or profile changes are waiting for the automatic Drive update.",
             )
         } else {
             initialCloudState(
@@ -793,6 +829,7 @@ class PracticeViewModel(
         val merged = uiState.snapshot.tasks.toMutableList()
         val errors = mutableListOf<String>()
         var loadedCount = 0
+        var generatedIdCount = 0
         assignments.forEachIndexed { index, assignment ->
             val existingIndex = merged.indexOfFirst { it.id == assignment.id }
             val existing = merged.getOrNull(existingIndex)
@@ -836,14 +873,24 @@ class PracticeViewModel(
                 errors += "Excel row ${index + 2}: duplicate assignment."
                 return@forEachIndexed
             }
+            if (
+                existing != null &&
+                existing.assignedDate != candidate.assignedDate &&
+                hasProgressForTask(existing.id)
+            ) {
+                errors +=
+                    "Excel row ${index + 2}: an assignment with progress cannot move dates."
+                return@forEachIndexed
+            }
             if (existingIndex >= 0) {
                 merged[existingIndex] = candidate
             } else {
                 merged += candidate
             }
             loadedCount += 1
+            if (assignment.generatedId) generatedIdCount += 1
         }
-        return WorkbookAssignmentMerge(merged, loadedCount, errors)
+        return WorkbookAssignmentMerge(merged, loadedCount, generatedIdCount, errors)
     }
 
     private fun managedRecordingDirectories(): List<File> = buildList {
@@ -917,7 +964,7 @@ private fun initialCloudState(
     if (profile.excelWorkbookUri.isNullOrBlank()) {
         CloudUiState(
             status = CloudSyncStatus.DISCONNECTED,
-            detail = "Choose Google Drive and create the automatic backup workbook.",
+            detail = "Choose Google Drive and create the two-way assignment workbook.",
         )
     } else if (
         destination?.isGoogleDrive == true &&
@@ -934,7 +981,7 @@ private fun initialCloudState(
             lastSyncedAtMillis = lastSyncedAtMillis,
             hasUnsyncedChanges = unsynced,
             detail = if (unsynced) {
-                "Local changes are waiting for the automatic Drive update."
+                "Assignment or profile changes are waiting for the automatic Drive update."
             } else {
                 driveReadyDetail(profile, destination.accountEmail)
             },
@@ -966,7 +1013,9 @@ private fun initialCloudState(
 
 private fun driveReadyDetail(profile: StudentProfile, verifiedAccount: String?): String =
     "Drive account verified: ${verifiedAccount ?: profile.driveAccountEmail}. " +
-        "The workbook was saved through the Drive provider; the Drive app controls server upload."
+        "App assignments sync to Excel; Excel assignment edits load back on request. " +
+        "Practice history remains local-first; workbook history is a snapshot. " +
+        "The Drive app controls server upload."
 
 private fun assignmentKey(task: PracticeTask): AssignmentKey =
     AssignmentKey(
@@ -991,6 +1040,7 @@ private data class AssignmentKey(
 private data class WorkbookAssignmentMerge(
     val tasks: List<PracticeTask>,
     val loadedCount: Int,
+    val generatedIdCount: Int,
     val errors: List<String>,
 )
 

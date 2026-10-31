@@ -10,6 +10,53 @@ data class WorkbookSheet(
 object PracticeWorkbookTemplate {
     const val TEMPLATE_VERSION = "2"
 
+    val profileHeaders = listOf(
+        "Key",
+        "Value",
+    )
+
+    val assignmentHeaders = listOf(
+        "Assignment ID",
+        "Assigned Date",
+        "Title",
+        "Reference Type",
+        "Reference Link",
+        "Clip Start Seconds",
+        "Clip End Seconds",
+        "Target Repetitions",
+        "Teacher Note",
+        "Why Important",
+        "Sheet Music Link",
+        "Has Local Sheet Music",
+    )
+
+    val dailyProgressHeaders = listOf(
+        "Date",
+        "Assignment ID",
+        "Assignment Title",
+        "Repetitions Completed",
+        "Target Repetitions",
+        "Completed",
+    )
+
+    val dailySummaryHeaders = listOf(
+        "Date",
+        "Total Practice Seconds",
+        "Assignments Completed",
+        "Assignments Planned",
+        "Repetitions Completed",
+    )
+
+    val practiceLogHeaders = listOf(
+        "Event ID",
+        "Date",
+        "Assignment ID",
+        "Assignment Title",
+        "Event",
+        "Timestamp UTC",
+        "Recording Saved",
+    )
+
     val requiredSheetNames = listOf(
         "Profile",
         "Assignments",
@@ -23,6 +70,14 @@ object PracticeWorkbookTemplate {
         "Assignments",
         "Daily Progress",
         "Practice Log",
+    )
+
+    val headersBySheet = linkedMapOf(
+        "Profile" to profileHeaders,
+        "Assignments" to assignmentHeaders,
+        "Daily Progress" to dailyProgressHeaders,
+        "Daily Summary" to dailySummaryHeaders,
+        "Practice Log" to practiceLogHeaders,
     )
 
     fun title(profile: StudentProfile): String =
@@ -39,33 +94,26 @@ object PracticeWorkbookTemplate {
         val taskById = snapshot.tasks.associateBy { it.id }
 
         val profileRows = listOf(
-            listOf("Key", "Value"),
+            profileHeaders,
             listOf("Template Version", TEMPLATE_VERSION),
             listOf("Student ID", profile.id),
             listOf("Student Name", profile.name),
             listOf("Instrument", profile.instrument),
             listOf("YouTube Channel Name", profile.youtubeChannelTitle.orEmpty()),
             listOf("YouTube Channel URL", profile.youtubeChannelUrl),
+            listOf(
+                "Assignment Sync",
+                "Two-way through the Assignments sheet. Load Excel edits before making competing app edits.",
+            ),
+            listOf(
+                "Practice History",
+                "Local-first. Workbook progress and log rows are snapshots and are not loaded into the app yet.",
+            ),
             listOf("Last Synced UTC", updatedAt),
         )
 
         val assignmentRows = buildList {
-            add(
-                listOf(
-                    "Assignment ID",
-                    "Assigned Date",
-                    "Title",
-                    "Reference Type",
-                    "Reference Link",
-                    "Clip Start Seconds",
-                    "Clip End Seconds",
-                    "Target Repetitions",
-                    "Teacher Note",
-                    "Why Important",
-                    "Sheet Music Link",
-                    "Has Local Sheet Music",
-                ),
-            )
+            add(assignmentHeaders)
             snapshot.tasks.sortedWith(compareBy(PracticeTask::assignedDate, PracticeTask::title))
                 .forEach { task ->
                     add(
@@ -91,16 +139,7 @@ object PracticeWorkbookTemplate {
         }
 
         val progressRows = buildList {
-            add(
-                listOf(
-                    "Date",
-                    "Assignment ID",
-                    "Assignment Title",
-                    "Repetitions Completed",
-                    "Target Repetitions",
-                    "Completed",
-                ),
-            )
+            add(dailyProgressHeaders)
             snapshot.progressByDate.values.sortedBy { it.date }.forEach { progress ->
                 val taskIds = (
                     progress.repetitionsByTask.keys +
@@ -137,15 +176,7 @@ object PracticeWorkbookTemplate {
         }
 
         val dailySummaryRows = buildList {
-            add(
-                listOf(
-                    "Date",
-                    "Total Practice Seconds",
-                    "Assignments Completed",
-                    "Assignments Planned",
-                    "Repetitions Completed",
-                ),
-            )
+            add(dailySummaryHeaders)
             val dates = (
                 snapshot.tasks.map(PracticeTask::assignedDate) +
                     snapshot.progressByDate.keys
@@ -167,17 +198,7 @@ object PracticeWorkbookTemplate {
         }
 
         val eventRows = buildList {
-            add(
-                listOf(
-                    "Event ID",
-                    "Date",
-                    "Assignment ID",
-                    "Assignment Title",
-                    "Event",
-                    "Timestamp UTC",
-                    "Recording Saved",
-                ),
-            )
+            add(practiceLogHeaders)
             snapshot.events.takeLast(500).forEach { event ->
                 add(
                     listOf(

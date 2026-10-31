@@ -10,6 +10,7 @@ data class CsvImportResult(
 
 object CsvCodec {
     private val headers = listOf(
+        "assignment_id",
         "date",
         "title",
         "reference_type",
@@ -29,6 +30,7 @@ object CsvCodec {
         tasks.forEach { task ->
             appendLine(
                 listOf(
+                    task.id,
                     task.assignedDate,
                     task.title,
                     task.sourceType.name,
@@ -80,6 +82,7 @@ object CsvCodec {
             fun field(name: String): String = indexByName[name]?.let { row.getOrNull(it) }.orEmpty().trim()
 
             val lineNumber = rowIndex + 2
+            val id = field("assignment_id").ifBlank(idFactory)
             val date = field("date").ifBlank { defaultDate }
             val title = field("title")
             val source = field("source")
@@ -113,7 +116,7 @@ object CsvCodec {
                 errors += "Line $lineNumber: $error."
             } else {
                 tasks += PracticeTask(
-                    id = idFactory(),
+                    id = id,
                     assignedDate = date,
                     title = title,
                     source = source,
