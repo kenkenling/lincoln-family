@@ -8,7 +8,7 @@ data class WorkbookSheet(
 )
 
 object PracticeWorkbookTemplate {
-    const val TEMPLATE_VERSION = "2"
+    const val TEMPLATE_VERSION = "3"
 
     val profileHeaders = listOf(
         "Key",
@@ -99,17 +99,16 @@ object PracticeWorkbookTemplate {
             listOf("Student ID", profile.id),
             listOf("Student Name", profile.name),
             listOf("Instrument", profile.instrument),
-            listOf("YouTube Channel Name", profile.youtubeChannelTitle.orEmpty()),
-            listOf("YouTube Channel URL", profile.youtubeChannelUrl),
+            listOf("Storage", "Local Excel file selected on this device"),
             listOf(
-                "Assignment Sync",
-                "Two-way through the Assignments sheet. Load Excel edits before making competing app edits.",
+                "Assignment Updates",
+                "Two-way through the Assignments sheet. Save app changes before loading edits from the file.",
             ),
             listOf(
                 "Practice History",
                 "Local-first. Workbook progress and log rows are snapshots and are not loaded into the app yet.",
             ),
-            listOf("Last Synced UTC", updatedAt),
+            listOf("Last Saved UTC", updatedAt),
         )
 
         val assignmentRows = buildList {

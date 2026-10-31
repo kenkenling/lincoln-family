@@ -22,65 +22,28 @@ enum class SourceType {
     LOCAL,
 }
 
-enum class WorkbookStorageKind {
-    GOOGLE_DRIVE,
-    DEVICE,
-    OTHER,
-}
-
-data class WorkbookDestinationInfo(
-    val kind: WorkbookStorageKind,
-    val providerName: String,
-    val accountEmail: String? = null,
-) {
-    val isGoogleDrive: Boolean
-        get() = kind == WorkbookStorageKind.GOOGLE_DRIVE
-
-    fun matchesExpectedAccount(expectedEmail: String?): Boolean {
-        val expected = expectedEmail?.trim()?.lowercase().orEmpty()
-        if (expected.isBlank()) return false
-        return accountEmail?.trim()?.lowercase() == expected
-    }
-}
-
 data class StudentProfile(
     val id: String,
     val name: String = "Lincoln",
     val instrument: String = "Violin",
-    val youtubeChannelUrl: String = "",
-    val youtubeChannelId: String? = null,
-    val youtubeChannelTitle: String? = null,
-    val youtubeAccountEmail: String? = null,
     val excelWorkbookUri: String? = null,
     val excelWorkbookName: String? = null,
-    // Retained so an installation that tried the earlier Google API flow loses no metadata.
-    val driveSpreadsheetId: String? = null,
-    val driveSpreadsheetName: String? = null,
-    val driveSpreadsheetUrl: String? = null,
-    val driveAccountEmail: String? = null,
-    // Retained only so existing folder-export installations can migrate safely.
-    val driveFolderUri: String? = null,
-    val driveFolderName: String? = null,
 )
 
-enum class CloudSyncStatus {
-    DISCONNECTED,
-    NEEDS_VERIFICATION,
-    CONNECTED,
-    UNSYNCED,
-    SYNCING,
+enum class LocalFileStatus {
+    NOT_CONFIGURED,
+    READY,
+    UNSAVED,
+    SAVING,
     ERROR,
 }
 
-data class CloudUiState(
-    val status: CloudSyncStatus,
-    val destinationName: String? = null,
-    val destinationUri: String? = null,
-    val destinationProviderName: String? = null,
-    val destinationAccountEmail: String? = null,
-    val isGoogleDrive: Boolean = false,
-    val lastSyncedAtMillis: Long? = null,
-    val hasUnsyncedChanges: Boolean = false,
+data class LocalFileUiState(
+    val status: LocalFileStatus,
+    val fileName: String? = null,
+    val fileUri: String? = null,
+    val lastSavedAtMillis: Long? = null,
+    val hasUnsavedChanges: Boolean = false,
     val detail: String = "",
 )
 
@@ -240,30 +203,4 @@ fun sourceTypeFor(value: String): SourceType? = when {
     value.trim().startsWith("content://") -> SourceType.LOCAL
     youtubeVideoId(value) != null -> SourceType.YOUTUBE
     else -> null
-}
-
-fun normalizedYoutubeChannelUrl(value: String): String? {
-    val trimmed = value.trim()
-    if (trimmed.isBlank()) return ""
-    val candidate = when {
-        trimmed.startsWith("@") -> "https://www.youtube.com/$trimmed"
-        "://" !in trimmed -> "https://$trimmed"
-        else -> trimmed
-    }
-    val uri = runCatching { URI(candidate) }.getOrNull() ?: return null
-    val host = uri.host?.lowercase().orEmpty().removePrefix("www.").removePrefix("m.")
-    if (uri.scheme?.lowercase() != "https" || host != "youtube.com") return null
-    val firstSegment = uri.path.orEmpty().trim('/').substringBefore('/')
-    val isChannelPath = firstSegment.startsWith("@") ||
-        firstSegment in setOf("channel", "c", "user")
-    return candidate.takeIf { isChannelPath }
-}
-
-fun normalizedAccountEmail(value: String): String? {
-    val normalized = value.trim().lowercase()
-    if (normalized.isBlank()) return ""
-    return normalized.takeIf {
-        it.length <= 254 &&
-            it.matches(Regex("[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\\.[a-z0-9-]+)+"))
-    }
 }

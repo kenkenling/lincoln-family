@@ -1,5 +1,7 @@
 package com.practicepartner.music
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -8,6 +10,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -140,12 +143,6 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         }
     }
 
-    fun openWebUrl(url: String) {
-        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-        runCatching { context.startActivity(intent) }
-            .onFailure { viewModel.setMessage("No browser is available to open this link.") }
-    }
-
     val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             if (persistReadPermission(uri)) {
@@ -171,27 +168,27 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         }
     }
     val createExcelWorkbook = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(XLSX_MIME_TYPE),
+        CreateLocalDocument(XLSX_MIME_TYPE),
     ) { uri ->
         if (uri != null) {
             if (persistReadWritePermission(uri)) {
-                viewModel.createExcelWorkbook(uri.toString())
+                viewModel.createLocalWorkbook(uri.toString())
             } else {
                 viewModel.setMessage(
-                    "Practice Partner could not keep permission to update this workbook. Choose Drive and try again.",
+                    "Practice Partner could not keep permission to update this local file. Choose it again.",
                 )
             }
         }
     }
     val chooseExcelWorkbook = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
+        OpenLocalDocument(),
     ) { uri ->
         if (uri != null) {
             if (persistReadWritePermission(uri)) {
-                viewModel.connectExistingExcelWorkbook(uri.toString())
+                viewModel.connectExistingLocalWorkbook(uri.toString())
             } else {
                 viewModel.setMessage(
-                    "Practice Partner could not keep permission to update this workbook. Choose it again.",
+                    "Practice Partner could not keep permission to update this local file. Choose it again.",
                 )
             }
         }
@@ -262,7 +259,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         Column(Modifier.fillMaxSize().padding(insets)) {
             AppHeader(
                 state = state,
-                cloudState = viewModel.cloudState,
+                fileState = viewModel.localFileState,
                 onOpenProfile = { showProfileDialog = true },
             )
             val activeTask = state.activeTask
@@ -343,23 +340,22 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
     }
 
     if (showProfileDialog) {
-        CloudProfileDialog(
+        LocalProfileDialog(
             profile = viewModel.studentProfile,
-            cloudState = viewModel.cloudState,
+            fileState = viewModel.localFileState,
             onDismiss = { showProfileDialog = false },
             onSaveProfile = viewModel::saveProfile,
-            onCreateExcel = {
+            onCreateFile = {
                 createExcelWorkbook.launch(viewModel.suggestedExcelFileName())
             },
-            onChooseExistingExcel = {
+            onChooseExistingFile = {
                 chooseExcelWorkbook.launch(arrayOf(XLSX_MIME_TYPE))
             },
-            onSyncExcel = viewModel::syncExcelWorkbook,
-            onLoadExcel = viewModel::loadAssignmentsFromExcel,
-            onOpenExcel = { uriText ->
+            onSaveFile = viewModel::saveLocalWorkbook,
+            onLoadFile = viewModel::loadAssignmentsFromLocalFile,
+            onOpenFile = { uriText ->
                 openUri(uriText.toUri(), XLSX_MIME_TYPE)
             },
-            onOpenUrl = ::openWebUrl,
         )
     }
 }
@@ -367,7 +363,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
 @Composable
 private fun AppHeader(
     state: PracticeUiState,
-    cloudState: CloudUiState,
+    fileState: LocalFileUiState,
     onOpenProfile: () -> Unit,
 ) {
     Row(
@@ -403,19 +399,19 @@ private fun AppHeader(
             ) {
                 Icon(
                     Icons.Default.Person,
-                    contentDescription = "Profile and cloud",
+                    contentDescription = "Profile and local file",
                     tint = Forest,
                 )
             }
-            if (!cloudState.destinationUri.isNullOrBlank()) {
+            if (!fileState.fileUri.isNullOrBlank()) {
                 Box(
                     Modifier
                         .align(Alignment.BottomEnd)
                         .size(11.dp)
                         .background(
                             when {
-                                cloudState.status == CloudSyncStatus.ERROR -> Danger
-                                cloudState.status == CloudSyncStatus.CONNECTED -> Forest
+                                fileState.status == LocalFileStatus.ERROR -> Danger
+                                fileState.status == LocalFileStatus.READY -> Forest
                                 else -> Amber
                             },
                             CircleShape,
@@ -428,3 +424,29 @@ private fun AppHeader(
 
 private const val XLSX_MIME_TYPE =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+private class CreateLocalDocument(
+    private val mimeType: String,
+) : ActivityResultContract<String, Uri?>() {
+    override fun createIntent(context: Context, input: String): Intent =
+        Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(mimeType)
+            .putExtra(Intent.EXTRA_TITLE, input)
+            .putExtra(Intent.EXTRA_LOCAL_ONLY, true)
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
+        intent?.data.takeIf { resultCode == Activity.RESULT_OK }
+}
+
+private class OpenLocalDocument : ActivityResultContract<Array<String>, Uri?>() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(if (input.size == 1) input.single() else "*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, input)
+            .putExtra(Intent.EXTRA_LOCAL_ONLY, true)
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
+        intent?.data.takeIf { resultCode == Activity.RESULT_OK }
+}

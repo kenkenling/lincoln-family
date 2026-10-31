@@ -20,7 +20,7 @@ import java.util.UUID
 class PracticeViewModel(
     private val appContext: Context,
     private val store: PracticeStore,
-    private val excelWorkbookStore: ExcelWorkbookStore,
+    private val localWorkbookStore: LocalWorkbookStore,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
@@ -28,18 +28,18 @@ class PracticeViewModel(
     private val initialLoad = store.loadWithStatus(initialDate)
     private val initialSnapshot = initialLoad.snapshot
     private var localRevision = store.loadLocalRevision()
-    private var lastSyncedRevision = store.loadLastSyncedRevision()
+    private var lastFileSaveRevision = store.loadLastFileSaveRevision()
 
     var studentProfile by mutableStateOf(store.loadProfile())
         private set
 
-    var cloudState by mutableStateOf(
-        initialCloudState(
+    var localFileState by mutableStateOf(
+        initialLocalFileState(
             profile = studentProfile,
-            lastSyncedAtMillis = store.loadLastCloudSyncAt(),
-            destination = excelWorkbookStore.describe(studentProfile.excelWorkbookUri),
+            lastSavedAtMillis = store.loadLastFileSaveAt(),
+            file = localWorkbookStore.describe(studentProfile.excelWorkbookUri),
             localRevision = localRevision,
-            lastSyncedRevision = lastSyncedRevision,
+            lastFileSaveRevision = lastFileSaveRevision,
         ),
     )
         private set
@@ -57,12 +57,12 @@ class PracticeViewModel(
     private var timerBaseSeconds = uiState.elapsedSeconds
     private var timerStartedAtMillis: Long? = null
     private var timerJob: Job? = null
-    private var autoSyncJob: Job? = null
+    private var autoSaveJob: Job? = null
 
     init {
         cleanupOrphanedRecordings()
-        if (cloudState.status == CloudSyncStatus.UNSYNCED) {
-            scheduleAutomaticSync()
+        if (localFileState.status == LocalFileStatus.UNSAVED) {
+            scheduleAutomaticFileSave()
         }
     }
 
@@ -101,17 +101,14 @@ class PracticeViewModel(
     fun saveProfile(
         nameText: String,
         instrumentText: String,
-        driveAccountEmailText: String,
     ): Boolean {
         val name = nameText.trim()
         val instrument = instrumentText.trim()
-        val driveAccountEmail = normalizedAccountEmail(driveAccountEmailText)
         val error = when {
             name.isBlank() -> "Add the student’s name."
             name.length > 80 -> "Keep the student’s name under 80 characters."
             instrument.isBlank() -> "Add an instrument."
             instrument.length > 80 -> "Keep the instrument under 80 characters."
-            driveAccountEmail == null -> "Enter a valid Google Drive account email."
             else -> null
         }
         if (error != null) {
@@ -121,7 +118,6 @@ class PracticeViewModel(
         val updated = studentProfile.copy(
             name = name,
             instrument = instrument,
-            driveAccountEmail = driveAccountEmail?.takeIf(String::isNotBlank),
         )
         val changed = updated != studentProfile
         store.saveProfile(updated)
@@ -134,84 +130,125 @@ class PracticeViewModel(
     fun suggestedExcelFileName(): String =
         PracticeWorkbookTemplate.fileName(studentProfile)
 
-    fun createExcelWorkbook(uriText: String) {
-        attachExcelWorkbook(uriText, ExcelWriteMode.CREATE)
+    fun createLocalWorkbook(uriText: String) {
+        val uri = validWorkbookUri(uriText) ?: return
+        writeLocalWorkbook(uri, LocalWorkbookWriteMode.CREATE)
     }
 
-    fun connectExistingExcelWorkbook(uriText: String) {
-        attachExcelWorkbook(uriText, ExcelWriteMode.CONNECT_EXISTING)
-    }
-
-    private fun attachExcelWorkbook(uriText: String, mode: ExcelWriteMode) {
-        val uri = uriText.trim()
-        if (!uri.startsWith("content://")) {
-            setMessage("Choose an Excel workbook with the Android file picker.")
-            return
-        }
-        writeExcelWorkbook(uri, mode)
-    }
-
-    fun syncExcelWorkbook() {
-        val uri = studentProfile.excelWorkbookUri
-        if (uri.isNullOrBlank()) {
-            setMessage("Create the Excel workbook in Google Drive first.")
-            return
-        }
-        val destination = excelWorkbookStore.describe(uri)
-        if (
-            destination?.isGoogleDrive != true ||
-            !destination.matchesExpectedAccount(studentProfile.driveAccountEmail)
-        ) {
-            cloudState = initialCloudState(
-                profile = studentProfile,
-                lastSyncedAtMillis = store.loadLastCloudSyncAt(),
-                destination = destination,
-                localRevision = localRevision,
-                lastSyncedRevision = lastSyncedRevision,
-            )
-            setMessage(
-                "The Drive account or workbook could not be verified. Reconnect it from Profile.",
-            )
-            return
-        }
-        writeExcelWorkbook(uri, ExcelWriteMode.SYNC, automatic = false)
-    }
-
-    fun loadAssignmentsFromExcel() {
-        val uri = studentProfile.excelWorkbookUri
-        if (uri.isNullOrBlank()) {
-            setMessage("Connect the Google Drive workbook first.")
-            return
-        }
-        if (localRevision > lastSyncedRevision) {
-            setMessage(
-                "Sync app assignment or profile changes to Drive before loading Excel assignments.",
-            )
-            return
-        }
-        if (cloudState.status == CloudSyncStatus.SYNCING) return
-        autoSyncJob?.cancel()
-        cloudState = cloudState.copy(
-            status = CloudSyncStatus.SYNCING,
-            detail = "Reading assignments from the connected Drive workbook…",
+    fun connectExistingLocalWorkbook(uriText: String) {
+        val uri = validWorkbookUri(uriText) ?: return
+        if (localFileState.status == LocalFileStatus.SAVING) return
+        autoSaveJob?.cancel()
+        localFileState = localFileState.copy(
+            status = LocalFileStatus.SAVING,
+            detail = "Checking the local file and reading its assignments…",
         )
         viewModelScope.launch {
             runCatching {
-                excelWorkbookStore.readAssignments(uri, studentProfile)
+                localWorkbookStore.readAssignments(uri)
+            }.onSuccess { result ->
+                val merge = mergeWorkbookAssignments(result.assignments)
+                val nextSnapshot = uiState.snapshot.copy(tasks = merge.tasks)
+                if (nextSnapshot != uiState.snapshot) {
+                    store.save(nextSnapshot)
+                    uiState = uiState.copy(snapshot = nextSnapshot)
+                }
+                val file = localWorkbookStore.describe(uri)
+                val updated = studentProfile.copy(
+                    excelWorkbookUri = uri,
+                    excelWorkbookName = file?.name ?: PracticeWorkbookTemplate.fileName(
+                        studentProfile,
+                    ),
+                )
+                store.saveProfile(updated)
+                studentProfile = updated
+                localRevision = store.bumpLocalRevision()
+                localFileState = LocalFileUiState(
+                    status = LocalFileStatus.UNSAVED,
+                    fileName = updated.excelWorkbookName,
+                    fileUri = uri,
+                    lastSavedAtMillis = store.loadLastFileSaveAt(),
+                    hasUnsavedChanges = true,
+                    detail = "The combined assignment plan is ready to save to this local file.",
+                )
+                val warnings = result.errors + merge.errors
+                val summary = buildString {
+                    append("Selected the local file and loaded ${merge.loadedCount} assignment")
+                    if (merge.loadedCount != 1) append('s')
+                    append(". The combined plan was saved.")
+                    if (warnings.isNotEmpty()) {
+                        append(" Skipped or adjusted ${warnings.size}: ")
+                        append(warnings.take(2).joinToString(" "))
+                    }
+                }
+                writeLocalWorkbook(
+                    uri = uri,
+                    mode = LocalWorkbookWriteMode.CONNECT_EXISTING,
+                    successMessage = summary,
+                )
+            }.onFailure { error ->
+                localFileState = localFileState.copy(
+                    status = LocalFileStatus.ERROR,
+                    detail = error.message ?: "The selected local Excel file could not be read.",
+                )
+                setMessage("Could not use that local Excel file.")
+            }
+        }
+    }
+
+    private fun validWorkbookUri(uriText: String): String? {
+        val uri = uriText.trim()
+        if (!uri.startsWith("content://")) {
+            setMessage("Choose a local Excel file with the Android file picker.")
+            return null
+        }
+        return uri
+    }
+
+    fun saveLocalWorkbook() {
+        val uri = studentProfile.excelWorkbookUri
+        if (uri.isNullOrBlank()) {
+            setMessage("Create or choose a local Excel file first.")
+            return
+        }
+        writeLocalWorkbook(uri, LocalWorkbookWriteMode.SAVE, automatic = false)
+    }
+
+    fun loadAssignmentsFromLocalFile() {
+        val uri = studentProfile.excelWorkbookUri
+        if (uri.isNullOrBlank()) {
+            setMessage("Create or choose a local Excel file first.")
+            return
+        }
+        if (localRevision > lastFileSaveRevision) {
+            setMessage(
+                "Save app assignment or profile changes before loading Excel assignments.",
+            )
+            return
+        }
+        if (localFileState.status == LocalFileStatus.SAVING) return
+        autoSaveJob?.cancel()
+        localFileState = localFileState.copy(
+            status = LocalFileStatus.SAVING,
+            detail = "Reading assignments from the local Excel file…",
+        )
+        viewModelScope.launch {
+            runCatching {
+                localWorkbookStore.readAssignments(uri)
             }.onSuccess { result ->
                 val merge = mergeWorkbookAssignments(result.assignments)
                 val assignmentsChanged = merge.tasks != uiState.snapshot.tasks
                 val needsIdWriteBack = merge.generatedIdCount > 0
                 if (assignmentsChanged) {
-                    updateSnapshot(syncWorkbook = needsIdWriteBack) {
+                    updateSnapshot(saveWorkbook = needsIdWriteBack) {
                         it.copy(tasks = merge.tasks)
                     }
                 }
                 if (!needsIdWriteBack) {
-                    cloudState = cloudState.copy(
-                        status = CloudSyncStatus.CONNECTED,
-                        hasUnsyncedChanges = false,
-                        detail = driveReadyDetail(studentProfile, cloudState.destinationAccountEmail),
+                    localFileState = localFileState.copy(
+                        status = LocalFileStatus.READY,
+                        hasUnsavedChanges = false,
+                        detail = localFileReadyDetail(),
                     )
                 }
                 val warnings = result.errors + merge.errors
@@ -219,7 +256,7 @@ class PracticeViewModel(
                     buildString {
                         append("Loaded ${merge.loadedCount} assignment")
                         if (merge.loadedCount != 1) append('s')
-                        append(" from Excel.")
+                        append(" from the local Excel file.")
                         if (merge.generatedIdCount > 0) {
                             append(
                                 " Added ${merge.generatedIdCount} missing assignment ID",
@@ -236,47 +273,47 @@ class PracticeViewModel(
                     },
                 )
             }.onFailure { error ->
-                cloudState = cloudState.copy(
-                    status = CloudSyncStatus.ERROR,
-                    detail = error.message ?: "The Drive workbook could not be read.",
+                localFileState = localFileState.copy(
+                    status = LocalFileStatus.ERROR,
+                    detail = error.message ?: "The local Excel file could not be read.",
                 )
-                setMessage("Could not load assignments from Excel.")
+                setMessage("Could not load assignments from the local Excel file.")
             }
         }
     }
 
-    private fun writeExcelWorkbook(
+    private fun writeLocalWorkbook(
         uri: String,
-        mode: ExcelWriteMode,
+        mode: LocalWorkbookWriteMode,
         automatic: Boolean = false,
+        successMessage: String? = null,
     ) {
-        if (cloudState.status == CloudSyncStatus.SYNCING) return
-        autoSyncJob?.cancel()
-        val profileToSync = studentProfile
-        val snapshotToSync = uiState.snapshot
+        if (localFileState.status == LocalFileStatus.SAVING) return
+        autoSaveJob?.cancel()
+        val profileToSave = studentProfile
+        val snapshotToSave = uiState.snapshot
         val requestedAt = wallClock()
         val requestedRevision = localRevision
-        cloudState = cloudState.copy(
-            status = CloudSyncStatus.SYNCING,
-            hasUnsyncedChanges = localRevision > lastSyncedRevision,
+        localFileState = localFileState.copy(
+            status = LocalFileStatus.SAVING,
+            hasUnsavedChanges = localRevision > lastFileSaveRevision,
             detail = when {
-                automatic -> "Automatically syncing assignments to the Drive workbook…"
-                mode == ExcelWriteMode.CREATE ->
-                    "Creating and verifying the Drive workbook and all column headings…"
-                mode == ExcelWriteMode.CONNECT_EXISTING ->
-                    "Checking and reconnecting the Drive workbook…"
-                else -> "Saving assignments and the current local snapshot to Drive…"
+                automatic -> "Automatically saving assignment changes to the local Excel file…"
+                mode == LocalWorkbookWriteMode.CREATE ->
+                    "Creating and verifying the local Excel file and all column headings…"
+                mode == LocalWorkbookWriteMode.CONNECT_EXISTING ->
+                    "Checking the selected Practice Partner file…"
+                else -> "Saving assignments and the current snapshot to the local Excel file…"
             },
         )
         viewModelScope.launch {
             runCatching {
-                excelWorkbookStore.write(
+                localWorkbookStore.write(
                     uriText = uri,
-                    profile = profileToSync,
-                    snapshot = snapshotToSync,
+                    profile = profileToSave,
+                    snapshot = snapshotToSave,
                     updatedAtMillis = requestedAt,
-                    requireExistingTemplate = mode == ExcelWriteMode.CONNECT_EXISTING,
-                    requireGoogleDrive = true,
+                    requireExistingTemplate = mode == LocalWorkbookWriteMode.CONNECT_EXISTING,
                 )
             }.onSuccess { workbook ->
                 val updated = studentProfile.copy(
@@ -284,63 +321,55 @@ class PracticeViewModel(
                     excelWorkbookName = workbook.name,
                 )
                 store.saveProfile(updated)
-                store.saveLastCloudSyncAt(workbook.syncedAtMillis)
-                store.saveLastSyncedRevision(requestedRevision)
-                lastSyncedRevision = requestedRevision
+                store.saveLastFileSaveAt(workbook.savedAtMillis)
+                store.saveLastFileSaveRevision(requestedRevision)
+                lastFileSaveRevision = requestedRevision
                 studentProfile = updated
-                val changedDuringSync = localRevision > requestedRevision
-                cloudState = CloudUiState(
-                    status = if (changedDuringSync) {
-                        CloudSyncStatus.UNSYNCED
+                val changedDuringSave = localRevision > requestedRevision
+                localFileState = LocalFileUiState(
+                    status = if (changedDuringSave) {
+                        LocalFileStatus.UNSAVED
                     } else {
-                        CloudSyncStatus.CONNECTED
+                        LocalFileStatus.READY
                     },
-                    destinationName = workbook.name,
-                    destinationUri = workbook.uri,
-                    destinationProviderName = workbook.destination.providerName,
-                    destinationAccountEmail = workbook.destination.accountEmail,
-                    isGoogleDrive = workbook.destination.isGoogleDrive,
-                    lastSyncedAtMillis = workbook.syncedAtMillis,
-                    hasUnsyncedChanges = changedDuringSync,
-                    detail = if (changedDuringSync) {
-                        "New assignment or profile changes are waiting for the next automatic Drive update."
+                    fileName = workbook.name,
+                    fileUri = workbook.uri,
+                    lastSavedAtMillis = workbook.savedAtMillis,
+                    hasUnsavedChanges = changedDuringSave,
+                    detail = if (changedDuringSave) {
+                        "New assignment or profile changes are waiting for the next local file save."
                     } else {
-                        driveReadyDetail(profileToSync, workbook.destination.accountEmail)
+                        localFileReadyDetail()
                     },
                 )
                 if (!automatic) {
                     setMessage(
-                        when (mode) {
-                            ExcelWriteMode.CREATE ->
-                                "Created and verified the Practice Partner workbook and all sheet columns for ${workbook.destination.accountEmail}."
-                            ExcelWriteMode.CONNECT_EXISTING ->
-                                "Reconnected and verified the Drive workbook."
-                            ExcelWriteMode.SYNC ->
-                                "Assignments were synced through the Google Drive provider."
+                        successMessage ?: when (mode) {
+                            LocalWorkbookWriteMode.CREATE ->
+                                "Created and verified the local Practice Partner Excel file."
+                            LocalWorkbookWriteMode.CONNECT_EXISTING ->
+                                "Selected the local Practice Partner Excel file."
+                            LocalWorkbookWriteMode.SAVE ->
+                                "Saved assignments to the local Excel file."
                         },
                     )
                 }
-                if (changedDuringSync) scheduleAutomaticSync()
+                if (changedDuringSave) scheduleAutomaticFileSave()
             }.onFailure { error ->
-                val existingDestination =
-                    excelWorkbookStore.describe(studentProfile.excelWorkbookUri)
-                cloudState = CloudUiState(
-                    status = CloudSyncStatus.ERROR,
-                    destinationName = studentProfile.excelWorkbookName,
-                    destinationUri = studentProfile.excelWorkbookUri,
-                    destinationProviderName = existingDestination?.providerName,
-                    destinationAccountEmail = existingDestination?.accountEmail,
-                    isGoogleDrive = existingDestination?.isGoogleDrive == true,
-                    lastSyncedAtMillis = store.loadLastCloudSyncAt(),
-                    hasUnsyncedChanges = localRevision > lastSyncedRevision,
+                localFileState = LocalFileUiState(
+                    status = LocalFileStatus.ERROR,
+                    fileName = studentProfile.excelWorkbookName,
+                    fileUri = studentProfile.excelWorkbookUri,
+                    lastSavedAtMillis = store.loadLastFileSaveAt(),
+                    hasUnsavedChanges = localRevision > lastFileSaveRevision,
                     detail = error.message
-                        ?: "The Excel workbook is linked, but the data sync did not finish.",
+                        ?: "The local Excel file is configured, but the save did not finish.",
                 )
                 setMessage(
                     if (automatic) {
-                        "Automatic assignment sync needs attention. Open Profile to retry."
+                        "Automatic local file save needs attention. Open Profile to retry."
                     } else {
-                        "Excel sync failed. Reopen Profile to retry or choose another file."
+                        "Local Excel save failed. Reopen Profile to retry or choose another file."
                     },
                 )
             }
@@ -430,7 +459,7 @@ class PracticeViewModel(
             setMessage("This assignment is already on ${friendlyDate(assignedDate)}.")
             return false
         }
-        updateSnapshot(syncWorkbook = true) { snapshot ->
+        updateSnapshot(saveWorkbook = true) { snapshot ->
             val tasks = if (existingTask == null) {
                 snapshot.tasks + task
             } else {
@@ -510,7 +539,7 @@ class PracticeViewModel(
             }
         }
         if (merged != uiState.snapshot.tasks) {
-            updateSnapshot(syncWorkbook = true) { snapshot ->
+            updateSnapshot(saveWorkbook = true) { snapshot ->
                 snapshot.copy(tasks = merged)
             }
         }
@@ -537,7 +566,7 @@ class PracticeViewModel(
             return
         }
         if (task.id == uiState.activeTaskId) finishPractice()
-        updateSnapshot(syncWorkbook = true) { snapshot ->
+        updateSnapshot(saveWorkbook = true) { snapshot ->
             snapshot.copy(
                 tasks = snapshot.tasks.filterNot { it.id == task.id },
                 progressByDate = snapshot.progressByDate.mapValues { (_, progress) ->
@@ -682,7 +711,7 @@ class PracticeViewModel(
     }
 
     override fun onCleared() {
-        autoSyncJob?.cancel()
+        autoSaveJob?.cancel()
         pauseTimer(logEvent = false)
     }
 
@@ -714,14 +743,14 @@ class PracticeViewModel(
     }
 
     private fun updateSnapshot(
-        syncWorkbook: Boolean = false,
+        saveWorkbook: Boolean = false,
         transform: (PracticeSnapshot) -> PracticeSnapshot,
     ) {
         val next = transform(uiState.snapshot)
         if (next == uiState.snapshot) return
         store.save(next)
         uiState = uiState.copy(snapshot = next)
-        if (syncWorkbook) recordLocalMutation()
+        if (saveWorkbook) recordLocalMutation()
     }
 
     private fun taskFor(id: String?): PracticeTask? = uiState.snapshot.tasks.firstOrNull { it.id == id }
@@ -762,39 +791,24 @@ class PracticeViewModel(
         localRevision = store.bumpLocalRevision()
         val uri = studentProfile.excelWorkbookUri
         if (uri.isNullOrBlank()) return
-        val existingConnectionVerified =
-            cloudState.destinationUri == uri &&
-                cloudState.isGoogleDrive &&
-                cloudState.destinationAccountEmail
-                    ?.equals(studentProfile.driveAccountEmail, ignoreCase = true) == true
-        cloudState = if (existingConnectionVerified) {
-            cloudState.copy(
-                status = CloudSyncStatus.UNSYNCED,
-                hasUnsyncedChanges = true,
-                detail = "Assignment or profile changes are waiting for the automatic Drive update.",
-            )
-        } else {
-            initialCloudState(
-                profile = studentProfile,
-                lastSyncedAtMillis = store.loadLastCloudSyncAt(),
-                destination = excelWorkbookStore.describe(uri),
-                localRevision = localRevision,
-                lastSyncedRevision = lastSyncedRevision,
-            )
-        }
-        if (cloudState.status == CloudSyncStatus.UNSYNCED) {
-            scheduleAutomaticSync()
-        }
+        localFileState = localFileState.copy(
+            status = LocalFileStatus.UNSAVED,
+            fileName = studentProfile.excelWorkbookName,
+            fileUri = uri,
+            hasUnsavedChanges = true,
+            detail = "Assignment or profile changes are waiting for the next local file save.",
+        )
+        scheduleAutomaticFileSave()
     }
 
-    private fun scheduleAutomaticSync() {
+    private fun scheduleAutomaticFileSave() {
         val uri = studentProfile.excelWorkbookUri ?: return
-        if (cloudState.status != CloudSyncStatus.UNSYNCED) return
-        autoSyncJob?.cancel()
-        autoSyncJob = viewModelScope.launch {
-            delay(AUTO_SYNC_DELAY_MILLIS)
-            if (cloudState.status == CloudSyncStatus.UNSYNCED) {
-                writeExcelWorkbook(uri, ExcelWriteMode.SYNC, automatic = true)
+        if (localFileState.status != LocalFileStatus.UNSAVED) return
+        autoSaveJob?.cancel()
+        autoSaveJob = viewModelScope.launch {
+            delay(AUTO_SAVE_DELAY_MILLIS)
+            if (localFileState.status == LocalFileStatus.UNSAVED) {
+                writeLocalWorkbook(uri, LocalWorkbookWriteMode.SAVE, automatic = true)
             }
         }
     }
@@ -938,84 +952,62 @@ class PracticeViewModel(
                 PracticeViewModel(
                     appContext = context.applicationContext,
                     store = PracticeStore(context.applicationContext),
-                    excelWorkbookStore = ExcelWorkbookStore(context.applicationContext),
+                    localWorkbookStore = LocalWorkbookStore(context.applicationContext),
                 ) as T
         }
     }
 }
 
-private enum class ExcelWriteMode {
+private enum class LocalWorkbookWriteMode {
     CREATE,
     CONNECT_EXISTING,
-    SYNC,
+    SAVE,
 }
 
 private fun friendlyDate(date: String): String = runCatching {
     java.time.LocalDate.parse(date).format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
 }.getOrDefault(date)
 
-private fun initialCloudState(
+private fun initialLocalFileState(
     profile: StudentProfile,
-    lastSyncedAtMillis: Long?,
-    destination: WorkbookDestinationInfo?,
+    lastSavedAtMillis: Long?,
+    file: LocalWorkbookFile?,
     localRevision: Long,
-    lastSyncedRevision: Long,
-): CloudUiState =
+    lastFileSaveRevision: Long,
+): LocalFileUiState =
     if (profile.excelWorkbookUri.isNullOrBlank()) {
-        CloudUiState(
-            status = CloudSyncStatus.DISCONNECTED,
-            detail = "Choose Google Drive and create the two-way assignment workbook.",
+        LocalFileUiState(
+            status = LocalFileStatus.NOT_CONFIGURED,
+            detail = "Create or choose a local Excel file for assignment updates.",
         )
-    } else if (
-        destination?.isGoogleDrive == true &&
-        destination.matchesExpectedAccount(profile.driveAccountEmail)
-    ) {
-        val unsynced = localRevision > lastSyncedRevision
-        CloudUiState(
-            status = if (unsynced) CloudSyncStatus.UNSYNCED else CloudSyncStatus.CONNECTED,
-            destinationName = profile.excelWorkbookName,
-            destinationUri = profile.excelWorkbookUri,
-            destinationProviderName = destination.providerName,
-            destinationAccountEmail = destination.accountEmail,
-            isGoogleDrive = true,
-            lastSyncedAtMillis = lastSyncedAtMillis,
-            hasUnsyncedChanges = unsynced,
-            detail = if (unsynced) {
-                "Assignment or profile changes are waiting for the automatic Drive update."
+    } else if (file != null) {
+        val unsaved = localRevision > lastFileSaveRevision
+        LocalFileUiState(
+            status = if (unsaved) LocalFileStatus.UNSAVED else LocalFileStatus.READY,
+            fileName = file.name,
+            fileUri = file.uri,
+            lastSavedAtMillis = lastSavedAtMillis,
+            hasUnsavedChanges = unsaved,
+            detail = if (unsaved) {
+                "Assignment or profile changes are waiting for the next local file save."
             } else {
-                driveReadyDetail(profile, destination.accountEmail)
+                localFileReadyDetail()
             },
         )
     } else {
-        val expectedAccount = profile.driveAccountEmail
-        val detail = when {
-            destination?.isGoogleDrive != true ->
-                "This workbook is not in Google Drive. Choose a Drive workbook."
-            expectedAccount.isNullOrBlank() ->
-                "Enter the Google Drive account email, then reconnect the workbook."
-            destination.accountEmail == null ->
-                "Android did not expose the selected Drive account. Choose the workbook again."
-            else ->
-                "The workbook account ${destination.accountEmail} does not match $expectedAccount."
-        }
-        CloudUiState(
-            status = CloudSyncStatus.NEEDS_VERIFICATION,
-            destinationName = profile.excelWorkbookName,
-            destinationUri = profile.excelWorkbookUri,
-            destinationProviderName = destination?.providerName ?: "unknown storage",
-            destinationAccountEmail = destination?.accountEmail,
-            isGoogleDrive = destination?.isGoogleDrive == true,
-            lastSyncedAtMillis = lastSyncedAtMillis,
-            hasUnsyncedChanges = localRevision > lastSyncedRevision,
-            detail = detail,
+        LocalFileUiState(
+            status = LocalFileStatus.ERROR,
+            fileName = profile.excelWorkbookName,
+            fileUri = profile.excelWorkbookUri,
+            lastSavedAtMillis = lastSavedAtMillis,
+            hasUnsavedChanges = localRevision > lastFileSaveRevision,
+            detail = "The app can no longer access this local Excel file. Choose it again.",
         )
     }
 
-private fun driveReadyDetail(profile: StudentProfile, verifiedAccount: String?): String =
-    "Drive account verified: ${verifiedAccount ?: profile.driveAccountEmail}. " +
-        "App assignments sync to Excel; Excel assignment edits load back on request. " +
-        "Practice history remains local-first; workbook history is a snapshot. " +
-        "The Drive app controls server upload."
+private fun localFileReadyDetail(): String =
+    "App assignments save to this local file. Excel assignment edits load back on request. " +
+        "Practice history and videos remain local-first."
 
 private fun assignmentKey(task: PracticeTask): AssignmentKey =
     AssignmentKey(
@@ -1045,4 +1037,4 @@ private data class WorkbookAssignmentMerge(
 )
 
 private const val MAX_EVENTS = 500
-private const val AUTO_SYNC_DELAY_MILLIS = 15_000L
+private const val AUTO_SAVE_DELAY_MILLIS = 15_000L

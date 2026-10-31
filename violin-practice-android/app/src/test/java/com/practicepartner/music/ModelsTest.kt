@@ -22,25 +22,6 @@ class ModelsTest {
     }
 
     @Test
-    fun youtubeChannelLinksAreNormalizedAndVideoLinksAreRejected() {
-        assertEquals(
-            "https://www.youtube.com/@lincoln",
-            normalizedYoutubeChannelUrl("@lincoln"),
-        )
-        assertEquals(
-            "https://youtube.com/channel/UC123",
-            normalizedYoutubeChannelUrl("youtube.com/channel/UC123"),
-        )
-        assertEquals("", normalizedYoutubeChannelUrl(" "))
-        assertNull(normalizedYoutubeChannelUrl("https://youtu.be/VZIWCt-jW6g"))
-        assertNull(
-            normalizedYoutubeChannelUrl(
-                "https://www.youtube.com/watch?v=VZIWCt-jW6g",
-            ),
-        )
-    }
-
-    @Test
     fun repetitionsCompleteAssignmentAtTarget() {
         val task = PracticeTask(
             id = "task",
@@ -91,15 +72,5 @@ class ModelsTest {
 
         assertFalse(task.id in reopened.completedTaskIds)
         assertEquals(3, reopened.repetitionsFor(task.id))
-    }
-
-    @Test
-    fun accountEmailIsNormalizedAndValidated() {
-        assertEquals(
-            "kenkenlincoln@gmail.com",
-            normalizedAccountEmail(" KenKenLincoln@gmail.com "),
-        )
-        assertEquals("", normalizedAccountEmail(" "))
-        assertNull(normalizedAccountEmail("not-an-email"))
     }
 }

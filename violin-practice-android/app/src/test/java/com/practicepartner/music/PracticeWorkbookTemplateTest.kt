@@ -35,6 +35,20 @@ class PracticeWorkbookTemplateTest {
     }
 
     @Test
+    fun profileSheetDescribesLocalStorageWithoutCloudConnections() {
+        val profileSheet = PracticeWorkbookTemplate.sheets(
+            profile = StudentProfile(id = "profile"),
+            snapshot = PracticeSnapshot(),
+            updatedAtMillis = 1_798_000_000_000,
+        ).single { it.name == "Profile" }
+        val rendered = profileSheet.rows.flatten().joinToString("|")
+
+        assertTrue(rendered.contains("Local Excel file selected on this device"))
+        assertFalse(rendered.contains("Google Drive"))
+        assertFalse(rendered.contains("YouTube Channel"))
+    }
+
+    @Test
     fun dailyPracticeSecondsAppearOncePerDateInsteadOfOncePerAssignment() {
         val tasks = listOf(
             PracticeTask(

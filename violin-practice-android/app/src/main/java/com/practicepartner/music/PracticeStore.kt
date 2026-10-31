@@ -77,16 +77,17 @@ class PracticeStore(context: Context) {
         return next
     }
 
-    fun loadLastSyncedRevision(): Long =
-        prefs.getLong("last_synced_revision", -1L).coerceAtLeast(-1L)
+    fun loadLastFileSaveRevision(): Long =
+        prefs.getLong("last_local_file_revision", -1L).coerceAtLeast(-1L)
 
-    fun saveLastSyncedRevision(revision: Long) {
+    fun saveLastFileSaveRevision(revision: Long) {
         prefs.edit(commit = true) {
-            putLong("last_synced_revision", revision.coerceAtLeast(0L))
+            putLong("last_local_file_revision", revision.coerceAtLeast(0L))
         }
     }
 
     fun loadProfile(): StudentProfile {
+        migrateRetiredConnections()
         val storedId = prefs.getString("student_profile_id", null)
         val profile = StudentProfile(
             id = storedId ?: UUID.randomUUID().toString(),
@@ -94,18 +95,8 @@ class PracticeStore(context: Context) {
             instrument = prefs.getString("student_profile_instrument", "Violin")
                 .orEmpty()
                 .ifBlank { "Violin" },
-            youtubeChannelUrl = prefs.getString("youtube_channel_url", "").orEmpty(),
-            youtubeChannelId = prefs.getString("youtube_channel_id", null),
-            youtubeChannelTitle = prefs.getString("youtube_channel_title", null),
-            youtubeAccountEmail = prefs.getString("youtube_account_email", null),
             excelWorkbookUri = prefs.getString("excel_workbook_uri", null),
             excelWorkbookName = prefs.getString("excel_workbook_name", null),
-            driveSpreadsheetId = prefs.getString("drive_spreadsheet_id", null),
-            driveSpreadsheetName = prefs.getString("drive_spreadsheet_name", null),
-            driveSpreadsheetUrl = prefs.getString("drive_spreadsheet_url", null),
-            driveAccountEmail = prefs.getString("drive_account_email", null),
-            driveFolderUri = prefs.getString("drive_folder_uri", null),
-            driveFolderName = prefs.getString("drive_folder_name", null),
         )
         if (storedId == null) saveProfile(profile)
         return profile
@@ -116,26 +107,29 @@ class PracticeStore(context: Context) {
             putString("student_profile_id", profile.id)
             putString("student_profile_name", profile.name)
             putString("student_profile_instrument", profile.instrument)
-            putString("youtube_channel_url", profile.youtubeChannelUrl)
-            putString("youtube_channel_id", profile.youtubeChannelId)
-            putString("youtube_channel_title", profile.youtubeChannelTitle)
-            putString("youtube_account_email", profile.youtubeAccountEmail)
             putString("excel_workbook_uri", profile.excelWorkbookUri)
             putString("excel_workbook_name", profile.excelWorkbookName)
-            putString("drive_spreadsheet_id", profile.driveSpreadsheetId)
-            putString("drive_spreadsheet_name", profile.driveSpreadsheetName)
-            putString("drive_spreadsheet_url", profile.driveSpreadsheetUrl)
-            putString("drive_account_email", profile.driveAccountEmail)
-            putString("drive_folder_uri", profile.driveFolderUri)
-            putString("drive_folder_name", profile.driveFolderName)
+            RETIRED_CONNECTION_KEYS.forEach(::remove)
         }
     }
 
-    fun loadLastCloudSyncAt(): Long? =
-        prefs.getLong("last_cloud_sync_at", 0L).takeIf { it > 0L }
+    fun loadLastFileSaveAt(): Long? =
+        prefs.getLong("last_local_file_save_at", 0L).takeIf { it > 0L }
 
-    fun saveLastCloudSyncAt(atMillis: Long) {
-        prefs.edit(commit = true) { putLong("last_cloud_sync_at", atMillis) }
+    fun saveLastFileSaveAt(atMillis: Long) {
+        prefs.edit(commit = true) { putLong("last_local_file_save_at", atMillis) }
+    }
+
+    private fun migrateRetiredConnections() {
+        if (prefs.getBoolean(LOCAL_ONLY_MIGRATION_KEY, false)) return
+        prefs.edit(commit = true) {
+            RETIRED_CONNECTION_KEYS.forEach(::remove)
+            remove("excel_workbook_uri")
+            remove("excel_workbook_name")
+            remove("last_cloud_sync_at")
+            remove("last_synced_revision")
+            putBoolean(LOCAL_ONLY_MIGRATION_KEY, true)
+        }
     }
 
     private fun migrateLegacy(currentDate: String): PracticeSnapshot {
@@ -334,6 +328,21 @@ class PracticeStore(context: Context) {
         )
     }
 }
+
+private const val LOCAL_ONLY_MIGRATION_KEY = "local_only_profile_migration_v1"
+
+private val RETIRED_CONNECTION_KEYS = listOf(
+    "youtube_channel_url",
+    "youtube_channel_id",
+    "youtube_channel_title",
+    "youtube_account_email",
+    "drive_spreadsheet_id",
+    "drive_spreadsheet_name",
+    "drive_spreadsheet_url",
+    "drive_account_email",
+    "drive_folder_uri",
+    "drive_folder_name",
+)
 
 private data class DecodedPracticeSnapshot(
     val snapshot: PracticeSnapshot,
