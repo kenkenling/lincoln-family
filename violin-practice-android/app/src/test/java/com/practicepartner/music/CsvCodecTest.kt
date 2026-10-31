@@ -1,6 +1,8 @@
 package com.practicepartner.music
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -27,9 +29,13 @@ class CsvCodecTest {
             idFactory = { "imported-id" },
         )
 
-        assertTrue(decoded.errors.isEmpty())
+        assertEquals(1, decoded.errors.size)
+        assertTrue(decoded.errors.single().contains("sheet music"))
         assertEquals(1, decoded.tasks.size)
-        assertEquals(original.copy(id = "imported-id"), decoded.tasks.single())
+        assertEquals(
+            original.copy(id = "imported-id", sheetMusicUri = null),
+            decoded.tasks.single(),
+        )
     }
 
     @Test
@@ -73,5 +79,40 @@ class CsvCodecTest {
         assertEquals(1, decoded.tasks.size)
         assertEquals(1, decoded.errors.size)
         assertTrue(decoded.errors.single().contains("Line 3"))
+    }
+
+    @Test
+    fun localReferencesExportAsPortableReattachmentPlaceholders() {
+        val local = PracticeTask(
+            id = "local",
+            assignedDate = "2026-10-31",
+            title = "Teacher demonstration",
+            source = "content://private/video",
+            sourceType = SourceType.LOCAL,
+            startSeconds = 2,
+            endSeconds = 8,
+            repetitions = 2,
+            sheetMusicUri = "content://private/sheet",
+        )
+
+        val encoded = CsvCodec.encode(listOf(local))
+        val decoded = CsvCodec.decode(encoded, defaultDate = "2026-10-31") { "imported" }
+
+        assertFalse(encoded.contains("content://private"))
+        assertEquals(2, decoded.errors.size)
+        assertEquals(SourceType.LOCAL, decoded.tasks.single().sourceType)
+        assertEquals("", decoded.tasks.single().source)
+        assertNull(decoded.tasks.single().sheetMusicUri)
+    }
+
+    @Test
+    fun rejectsAnUnclosedQuotedField() {
+        val decoded = CsvCodec.decode(
+            "title,source,start_seconds,end_seconds,repetitions\n\"Tremolo,https://youtu.be/VZIWCt-jW6g,0,10,3",
+            defaultDate = "2026-10-31",
+        )
+
+        assertTrue(decoded.tasks.isEmpty())
+        assertTrue(decoded.errors.single().contains("unclosed quoted field"))
     }
 }

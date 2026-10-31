@@ -22,6 +22,68 @@ enum class SourceType {
     LOCAL,
 }
 
+enum class WorkbookStorageKind {
+    GOOGLE_DRIVE,
+    DEVICE,
+    OTHER,
+}
+
+data class WorkbookDestinationInfo(
+    val kind: WorkbookStorageKind,
+    val providerName: String,
+    val accountEmail: String? = null,
+) {
+    val isGoogleDrive: Boolean
+        get() = kind == WorkbookStorageKind.GOOGLE_DRIVE
+
+    fun matchesExpectedAccount(expectedEmail: String?): Boolean {
+        val expected = expectedEmail?.trim()?.lowercase().orEmpty()
+        if (expected.isBlank()) return false
+        return accountEmail?.trim()?.lowercase() == expected
+    }
+}
+
+data class StudentProfile(
+    val id: String,
+    val name: String = "Lincoln",
+    val instrument: String = "Violin",
+    val youtubeChannelUrl: String = "",
+    val youtubeChannelId: String? = null,
+    val youtubeChannelTitle: String? = null,
+    val youtubeAccountEmail: String? = null,
+    val excelWorkbookUri: String? = null,
+    val excelWorkbookName: String? = null,
+    // Retained so an installation that tried the earlier Google API flow loses no metadata.
+    val driveSpreadsheetId: String? = null,
+    val driveSpreadsheetName: String? = null,
+    val driveSpreadsheetUrl: String? = null,
+    val driveAccountEmail: String? = null,
+    // Retained only so existing folder-export installations can migrate safely.
+    val driveFolderUri: String? = null,
+    val driveFolderName: String? = null,
+)
+
+enum class CloudSyncStatus {
+    DISCONNECTED,
+    NEEDS_VERIFICATION,
+    CONNECTED,
+    UNSYNCED,
+    SYNCING,
+    ERROR,
+}
+
+data class CloudUiState(
+    val status: CloudSyncStatus,
+    val destinationName: String? = null,
+    val destinationUri: String? = null,
+    val destinationProviderName: String? = null,
+    val destinationAccountEmail: String? = null,
+    val isGoogleDrive: Boolean = false,
+    val lastSyncedAtMillis: Long? = null,
+    val hasUnsyncedChanges: Boolean = false,
+    val detail: String = "",
+)
+
 data class PracticeTask(
     val id: String,
     val assignedDate: String,
@@ -58,7 +120,9 @@ data class DailyProgress(
         return if (isCompleted) {
             copy(
                 completedTaskIds = completedTaskIds - task.id,
-                repetitionsByTask = repetitionsByTask + (task.id to 0),
+                repetitionsByTask = repetitionsByTask + (
+                    task.id to (task.repetitions - 1).coerceAtLeast(0)
+                    ),
             )
         } else {
             copy(
@@ -99,6 +163,7 @@ data class RecordingFile(
 data class PracticeUiState(
     val snapshot: PracticeSnapshot,
     val currentDate: String,
+    val summaryDate: String = currentDate,
     val page: AppPage = AppPage.TODAY,
     val mode: PracticeMode = PracticeMode.LISTEN,
     val selectedTaskId: String? = null,
@@ -117,8 +182,28 @@ data class PracticeUiState(
     val todayEvents: List<PracticeEvent>
         get() = snapshot.events.filter { it.date == currentDate }
 
+    val summaryTasks: List<PracticeTask>
+        get() = snapshot.tasks.filter { it.assignedDate == summaryDate }
+
+    val summaryProgress: DailyProgress
+        get() = snapshot.progressByDate[summaryDate] ?: DailyProgress(summaryDate)
+
+    val summaryEvents: List<PracticeEvent>
+        get() = snapshot.events.filter { it.date == summaryDate }
+
+    val historyDates: List<String>
+        get() = (
+            snapshot.tasks.map(PracticeTask::assignedDate) +
+                snapshot.progressByDate.keys +
+                snapshot.events.map(PracticeEvent::date) +
+                currentDate
+            ).distinct().sorted()
+
     val activeTask: PracticeTask?
         get() = snapshot.tasks.firstOrNull { it.id == activeTaskId }
+
+    fun tasksForDate(date: String): List<PracticeTask> =
+        snapshot.tasks.filter { it.assignedDate == date }
 }
 
 fun currentDateKey(): String = LocalDate.now().toString()
@@ -155,4 +240,30 @@ fun sourceTypeFor(value: String): SourceType? = when {
     value.trim().startsWith("content://") -> SourceType.LOCAL
     youtubeVideoId(value) != null -> SourceType.YOUTUBE
     else -> null
+}
+
+fun normalizedYoutubeChannelUrl(value: String): String? {
+    val trimmed = value.trim()
+    if (trimmed.isBlank()) return ""
+    val candidate = when {
+        trimmed.startsWith("@") -> "https://www.youtube.com/$trimmed"
+        "://" !in trimmed -> "https://$trimmed"
+        else -> trimmed
+    }
+    val uri = runCatching { URI(candidate) }.getOrNull() ?: return null
+    val host = uri.host?.lowercase().orEmpty().removePrefix("www.").removePrefix("m.")
+    if (uri.scheme?.lowercase() != "https" || host != "youtube.com") return null
+    val firstSegment = uri.path.orEmpty().trim('/').substringBefore('/')
+    val isChannelPath = firstSegment.startsWith("@") ||
+        firstSegment in setOf("channel", "c", "user")
+    return candidate.takeIf { isChannelPath }
+}
+
+fun normalizedAccountEmail(value: String): String? {
+    val normalized = value.trim().lowercase()
+    if (normalized.isBlank()) return ""
+    return normalized.takeIf {
+        it.length <= 254 &&
+            it.matches(Regex("[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\\.[a-z0-9-]+)+"))
+    }
 }

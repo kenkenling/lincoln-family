@@ -23,7 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -36,12 +38,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
     private val practiceViewModel by viewModels<PracticeViewModel> {
@@ -71,6 +75,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         practiceViewModel.refreshDate()
+        practiceViewModel.resumeActivePractice()
     }
 
     override fun onStop() {
@@ -84,7 +89,11 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
     val context = LocalContext.current
     val state = viewModel.uiState
     val snackbarHostState = remember { SnackbarHostState() }
-    var form by remember(state.currentDate) { mutableStateOf(AssignmentForm()) }
+    var form by remember(state.currentDate) {
+        mutableStateOf(AssignmentForm(assignedDate = state.currentDate))
+    }
+    var showProfileDialog by rememberSaveable { mutableStateOf(false) }
+    var csvDatePending by rememberSaveable { mutableStateOf(state.currentDate) }
 
     LaunchedEffect(state.message) {
         if (state.message.isNotBlank()) {
@@ -93,14 +102,22 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         }
     }
 
-    fun persistReadPermission(uri: Uri) {
+    fun persistReadPermission(uri: Uri): Boolean =
         runCatching {
             context.contentResolver.takePersistableUriPermission(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
-        }
-    }
+        }.isSuccess
+
+    fun persistReadWritePermission(uri: Uri): Boolean =
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }.isSuccess
 
     fun openUri(uri: Uri, mimeType: String) {
         val intent = Intent(Intent.ACTION_VIEW)
@@ -123,18 +140,60 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         }
     }
 
+    fun openWebUrl(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+        runCatching { context.startActivity(intent) }
+            .onFailure { viewModel.setMessage("No browser is available to open this link.") }
+    }
+
     val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            persistReadPermission(uri)
-            form = form.copy(source = uri.toString())
-            viewModel.setMessage("Reference video selected.")
+            if (persistReadPermission(uri)) {
+                form = form.copy(source = uri.toString())
+                viewModel.setMessage("Reference video selected.")
+            } else {
+                viewModel.setMessage(
+                    "Practice Partner could not keep access to that video. Choose it again from Files.",
+                )
+            }
         }
     }
     val pickSheetMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            persistReadPermission(uri)
-            form = form.copy(sheetMusicUri = uri.toString())
-            viewModel.setMessage("Sheet music attached.")
+            if (persistReadPermission(uri)) {
+                form = form.copy(sheetMusicUri = uri.toString())
+                viewModel.setMessage("Sheet music attached.")
+            } else {
+                viewModel.setMessage(
+                    "Practice Partner could not keep access to that sheet music. Choose it again from Files.",
+                )
+            }
+        }
+    }
+    val createExcelWorkbook = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(XLSX_MIME_TYPE),
+    ) { uri ->
+        if (uri != null) {
+            if (persistReadWritePermission(uri)) {
+                viewModel.createExcelWorkbook(uri.toString())
+            } else {
+                viewModel.setMessage(
+                    "Practice Partner could not keep permission to update this workbook. Choose Drive and try again.",
+                )
+            }
+        }
+    }
+    val chooseExcelWorkbook = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            if (persistReadWritePermission(uri)) {
+                viewModel.connectExistingExcelWorkbook(uri.toString())
+            } else {
+                viewModel.setMessage(
+                    "Practice Partner could not keep permission to update this workbook. Choose it again.",
+                )
+            }
         }
     }
     val importCsv = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -142,7 +201,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             runCatching {
                 context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                     ?: error("Could not read this CSV file.")
-            }.onSuccess(viewModel::importCsv)
+            }.onSuccess { viewModel.importCsv(it, csvDatePending) }
                 .onFailure { viewModel.setMessage(it.message ?: "Could not import the CSV.") }
         }
     }
@@ -153,15 +212,16 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             runCatching {
                 val output = context.contentResolver.openOutputStream(uri)
                     ?: error("Could not open the destination file.")
-                output.bufferedWriter().use { it.write(viewModel.exportTodayCsv()) }
+                output.bufferedWriter().use {
+                    it.write(viewModel.exportCsvForDate(csvDatePending))
+                }
             }.onSuccess {
-                viewModel.setMessage("Today’s assignments were exported.")
+                viewModel.setMessage("Assignments for $csvDatePending were exported.")
             }.onFailure {
-                viewModel.setMessage(it.message ?: "Could not export today’s assignments.")
+                viewModel.setMessage(it.message ?: "Could not export the assignments.")
             }
         }
     }
-
     BackHandler(enabled = state.activeTaskId != null) {
         viewModel.finishPractice()
     }
@@ -200,7 +260,11 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         },
     ) { insets ->
         Column(Modifier.fillMaxSize().padding(insets)) {
-            AppHeader(state)
+            AppHeader(
+                state = state,
+                cloudState = viewModel.cloudState,
+                onOpenProfile = { showProfileDialog = true },
+            )
             val activeTask = state.activeTask
             if (activeTask != null) {
                 PracticeSessionPage(
@@ -209,6 +273,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                     onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
                     onRecordingChanged = viewModel::setRecordingActive,
                     onCompleteRepetition = { viewModel.recordRepetition(activeTask) },
+                    onResumeTimer = viewModel::resumeActivePractice,
                     onOpenUri = ::openUri,
                     onShare = ::shareVideo,
                     onDeleteRecording = { recording -> viewModel.deleteRecording(recording.path) },
@@ -218,8 +283,6 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 when (state.page) {
                     AppPage.TODAY -> TodayPage(
                         state = state,
-                        onStartTimer = viewModel::startTimer,
-                        onPauseTimer = { viewModel.pauseTimer() },
                         onSelectMode = viewModel::setMode,
                         onPractice = viewModel::startPractice,
                         onToggleCompleted = viewModel::toggleCompleted,
@@ -235,13 +298,19 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                             )
                         },
                         onImport = {
+                            csvDatePending = form.assignedDate
                             importCsv.launch(
                                 arrayOf("text/csv", "text/*", "application/vnd.ms-excel"),
                             )
                         },
-                        onExport = { exportCsv.launch("practice-assignment-${state.currentDate}.csv") },
+                        onExport = {
+                            csvDatePending = form.assignedDate
+                            exportCsv.launch("practice-assignment-${form.assignedDate}.csv")
+                        },
                         onAdd = {
-                            val added = viewModel.addAssignment(
+                            val added = viewModel.saveAssignment(
+                                taskId = form.editingTaskId,
+                                assignedDateText = form.assignedDate,
                                 titleText = form.title,
                                 sourceText = form.source,
                                 startText = form.start,
@@ -251,26 +320,56 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                                 whyImportant = form.whyImportant,
                                 sheetMusicUri = form.sheetMusicUri,
                             )
-                            if (added) form = AssignmentForm()
+                            if (added) {
+                                form = AssignmentForm(assignedDate = form.assignedDate)
+                            }
                         },
                         onRemove = viewModel::removeTask,
                     )
                     AppPage.SUMMARY -> SummaryPage(
                         state = state,
+                        onPreviousDate = viewModel::showPreviousSummaryDate,
+                        onNextDate = viewModel::showNextSummaryDate,
+                        onToday = viewModel::showTodaySummary,
                         onOpenUri = ::openUri,
                         onShare = ::shareVideo,
                         onDeleteRecording = { event ->
-                            event.videoPath?.let(viewModel::deleteRecording)
+                            event.videoPath?.let(viewModel::deleteRecording) ?: false
                         },
                     )
                 }
             }
         }
     }
+
+    if (showProfileDialog) {
+        CloudProfileDialog(
+            profile = viewModel.studentProfile,
+            cloudState = viewModel.cloudState,
+            onDismiss = { showProfileDialog = false },
+            onSaveProfile = viewModel::saveProfile,
+            onCreateExcel = {
+                createExcelWorkbook.launch(viewModel.suggestedExcelFileName())
+            },
+            onChooseExistingExcel = {
+                chooseExcelWorkbook.launch(arrayOf(XLSX_MIME_TYPE))
+            },
+            onSyncExcel = viewModel::syncExcelWorkbook,
+            onLoadExcel = viewModel::loadAssignmentsFromExcel,
+            onOpenExcel = { uriText ->
+                openUri(uriText.toUri(), XLSX_MIME_TYPE)
+            },
+            onOpenUrl = ::openWebUrl,
+        )
+    }
 }
 
 @Composable
-private fun AppHeader(state: PracticeUiState) {
+private fun AppHeader(
+    state: PracticeUiState,
+    cloudState: CloudUiState,
+    onOpenProfile: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -297,11 +396,35 @@ private fun AppHeader(state: PracticeUiState) {
                 fontWeight = FontWeight.Bold,
             )
         }
-        Box(
-            Modifier.size(42.dp).background(Sage, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("♪", color = Forest, fontWeight = FontWeight.Bold)
+        Box {
+            IconButton(
+                onClick = onOpenProfile,
+                modifier = Modifier.size(44.dp).background(Sage, CircleShape),
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = "Profile and cloud",
+                    tint = Forest,
+                )
+            }
+            if (!cloudState.destinationUri.isNullOrBlank()) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(11.dp)
+                        .background(
+                            when {
+                                cloudState.status == CloudSyncStatus.ERROR -> Danger
+                                cloudState.status == CloudSyncStatus.CONNECTED -> Forest
+                                else -> Amber
+                            },
+                            CircleShape,
+                        ),
+                )
+            }
         }
     }
 }
+
+private const val XLSX_MIME_TYPE =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

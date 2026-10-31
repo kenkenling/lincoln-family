@@ -1,5 +1,6 @@
 package com.practicepartner.music
 
+import android.app.DatePickerDialog
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,8 +9,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,10 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -28,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -47,6 +52,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Date
 
 data class AssignmentForm(
+    val editingTaskId: String? = null,
+    val assignedDate: String = currentDateKey(),
     val title: String = "",
     val source: String = "",
     val start: String = "",
@@ -55,14 +62,27 @@ data class AssignmentForm(
     val coachNote: String = "",
     val whyImportant: String = "",
     val sheetMusicUri: String? = null,
-)
+) {
+    companion object {
+        fun fromTask(task: PracticeTask): AssignmentForm = AssignmentForm(
+            editingTaskId = task.id,
+            assignedDate = task.assignedDate,
+            title = task.title,
+            source = task.source,
+            start = task.startSeconds.toString(),
+            end = task.endSeconds?.toString().orEmpty(),
+            repetitions = task.repetitions.toString(),
+            coachNote = task.coachNote,
+            whyImportant = task.whyImportant,
+            sheetMusicUri = task.sheetMusicUri,
+        )
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TodayPage(
     state: PracticeUiState,
-    onStartTimer: () -> Unit,
-    onPauseTimer: () -> Unit,
     onSelectMode: (PracticeMode) -> Unit,
     onPractice: (PracticeTask) -> Unit,
     onToggleCompleted: (PracticeTask) -> Unit,
@@ -72,57 +92,6 @@ fun TodayPage(
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Forest),
-                shape = RoundedCornerShape(24.dp),
-            ) {
-                Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                    Text(
-                        friendlyFullDate(state.currentDate),
-                        color = Paper.copy(alpha = 0.8f),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "A little practice,\na little progress.",
-                        color = Paper,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(18.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column {
-                            Text(
-                                formatDuration(state.elapsedSeconds),
-                                color = Paper,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                if (state.running) "Today’s timer is running" else "Today’s active practice",
-                                color = Paper.copy(alpha = 0.8f),
-                            )
-                        }
-                        Button(
-                            onClick = if (state.running) onPauseTimer else onStartTimer,
-                            colors = ButtonDefaults.buttonColors(containerColor = Paper, contentColor = Forest),
-                        ) {
-                            Icon(
-                                if (state.running) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = null,
-                            )
-                            Text(if (state.running) " Pause" else " Start")
-                        }
-                    }
-                }
-            }
-        }
-
         item {
             Column {
                 Text(
@@ -158,6 +127,7 @@ fun TodayPage(
         items(state.todayTasks, key = { it.id }) { task ->
             val completedRepetitions = progress.repetitionsFor(task.id)
             val completed = task.id in progress.completedTaskIds
+            val needsReference = task.sourceType == SourceType.LOCAL && task.source.isBlank()
             Card(
                 colors = CardDefaults.cardColors(containerColor = Paper),
                 shape = RoundedCornerShape(20.dp),
@@ -188,9 +158,17 @@ fun TodayPage(
                     if (task.coachNote.isNotBlank()) {
                         Text("Coach focus: ${task.coachNote}", color = Ink)
                     }
+                    if (needsReference) {
+                        Text(
+                            "Reference video needs to be reattached in Assign before practice.",
+                            color = Danger,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { onPractice(task) },
+                            enabled = !needsReference,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = Forest),
                         ) {
@@ -220,149 +198,311 @@ fun AssignmentPage(
     onAdd: () -> Unit,
     onRemove: (PracticeTask) -> Unit,
 ) {
-    LazyColumn(
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Paper),
-                shape = RoundedCornerShape(20.dp),
-            ) {
-                Column(
-                    Modifier.fillMaxWidth().padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        "Build today’s plan",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Assignments are stored for ${friendlyFullDate(state.currentDate)} and reset naturally on the next day.",
-                        color = Muted,
-                    )
-                    OutlinedTextField(
-                        value = form.title,
-                        onValueChange = { onFormChanged(form.copy(title = it)) },
-                        label = { Text("Technique, piece, or passage") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = form.source,
-                        onValueChange = { onFormChanged(form.copy(source = it)) },
-                        label = { Text("YouTube link or selected device video") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedButton(onClick = onPickVideo, modifier = Modifier.fillMaxWidth()) {
-                        Text("Choose reference video from device")
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = form.start,
-                            onValueChange = { onFormChanged(form.copy(start = it)) },
-                            label = { Text("Start seconds") },
-                            placeholder = { Text("0") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.weight(1f),
-                        )
-                        OutlinedTextField(
-                            value = form.end,
-                            onValueChange = { onFormChanged(form.copy(end = it)) },
-                            label = { Text("End seconds") },
-                            placeholder = { Text("Video end") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    OutlinedTextField(
-                        value = form.repetitions,
-                        onValueChange = { onFormChanged(form.copy(repetitions = it)) },
-                        label = { Text("Target repetitions (1–20)") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = form.coachNote,
-                        onValueChange = { onFormChanged(form.copy(coachNote = it)) },
-                        label = { Text("Coach focus") },
-                        minLines = 2,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = form.whyImportant,
-                        onValueChange = { onFormChanged(form.copy(whyImportant = it)) },
-                        label = { Text("Why this matters") },
-                        minLines = 2,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedButton(onClick = onPickSheetMusic, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (form.sheetMusicUri == null) "Attach sheet music" else "Replace attached sheet music")
-                    }
-                    if (form.sheetMusicUri != null) {
-                        Text("Sheet music attached.", color = Forest, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
-                        Text("Add assignment")
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
-                            Text("Import CSV")
-                        }
-                        OutlinedButton(
-                            onClick = onExport,
-                            enabled = state.todayTasks.isNotEmpty(),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Export today")
-                        }
-                    }
-                    Text(
-                        "CSV now preserves commas, quotation marks, dates, coaching notes, and optional sheet-music URIs.",
-                        color = Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        }
+    val context = LocalContext.current
+    val selectedDate = runCatching { LocalDate.parse(form.assignedDate) }
+        .getOrDefault(LocalDate.now())
+    val assignmentsForDate = state.tasksForDate(form.assignedDate)
+    var pendingRemoval by remember { mutableStateOf<PracticeTask?>(null) }
 
-        item {
-            Text(
-                "Today’s assignments · ${state.todayTasks.size}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        items(state.todayTasks, key = { "assignment-${it.id}" }) { task ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Paper),
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(15.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+    fun showDatePicker() {
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                val date = LocalDate.of(year, month + 1, day).toString()
+                onFormChanged(form.copy(assignedDate = date))
+            },
+            selectedDate.year,
+            selectedDate.monthValue - 1,
+            selectedDate.dayOfMonth,
+        ).show()
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Paper),
+                    shape = RoundedCornerShape(20.dp),
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(task.title, fontWeight = FontWeight.SemiBold)
+                    Column(
+                        Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
                         Text(
-                            "${if (task.sourceType == SourceType.LOCAL) "Device video" else "YouTube"} · " +
-                                "${task.repetitions} repetitions",
+                            if (form.editingTaskId == null) {
+                                "Build a practice plan"
+                            } else {
+                                "Edit assignment"
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "Assignment date: ${friendlyFullDate(form.assignedDate)}",
+                            color = Muted,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = ::showDatePicker,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Choose date")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    onFormChanged(
+                                        form.copy(assignedDate = state.currentDate),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Use today")
+                            }
+                        }
+                        OutlinedTextField(
+                            value = form.title,
+                            onValueChange = { onFormChanged(form.copy(title = it)) },
+                            label = { Text("Technique, piece, or passage") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = form.source,
+                            onValueChange = { onFormChanged(form.copy(source = it)) },
+                            label = { Text("YouTube link or selected device video") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedButton(onClick = onPickVideo, modifier = Modifier.fillMaxWidth()) {
+                            Text("Choose reference video from device")
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = form.start,
+                                onValueChange = { onFormChanged(form.copy(start = it)) },
+                                label = { Text("Start seconds") },
+                                placeholder = { Text("0") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                            )
+                            OutlinedTextField(
+                                value = form.end,
+                                onValueChange = { onFormChanged(form.copy(end = it)) },
+                                label = { Text("End seconds") },
+                                placeholder = { Text("Video end") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        OutlinedTextField(
+                            value = form.repetitions,
+                            onValueChange = { onFormChanged(form.copy(repetitions = it)) },
+                            label = { Text("Target repetitions (1–20)") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = form.coachNote,
+                            onValueChange = { onFormChanged(form.copy(coachNote = it)) },
+                            label = { Text("Coach focus") },
+                            minLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = form.whyImportant,
+                            onValueChange = { onFormChanged(form.copy(whyImportant = it)) },
+                            label = { Text("Why this matters") },
+                            minLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            "Sheet music (optional)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            "Attach a PDF or image for Lincoln to open during practice, or leave this blank.",
+                            color = Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        OutlinedButton(
+                            onClick = onPickSheetMusic,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                if (form.sheetMusicUri == null) {
+                                    "Attach sheet music (optional)"
+                                } else {
+                                    "Replace attached sheet music"
+                                },
+                            )
+                        }
+                        if (form.sheetMusicUri != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Sheet music attached and ready.",
+                                    color = Forest,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TextButton(
+                                    onClick = {
+                                        onFormChanged(form.copy(sheetMusicUri = null))
+                                    },
+                                ) {
+                                    Text("Remove")
+                                }
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
+                                Text("Import CSV")
+                            }
+                            OutlinedButton(
+                                onClick = onExport,
+                                enabled = assignmentsForDate.isNotEmpty(),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Export date")
+                            }
+                        }
+                        Text(
+                            "CSV now preserves commas, quotation marks, dates, coaching notes, and optional sheet-music URIs.",
                             color = Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    TextButton(onClick = { onRemove(task) }) {
-                        Text("Remove", color = Danger)
+                }
+            }
+
+            item {
+                Text(
+                    "${friendlyFullDate(form.assignedDate)} · ${assignmentsForDate.size} assignment" +
+                        if (assignmentsForDate.size == 1) "" else "s",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            items(assignmentsForDate, key = { "assignment-${it.id}" }) { task ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Paper),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(15.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(task.title, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${if (task.sourceType == SourceType.LOCAL) {
+                                    if (task.source.isBlank()) "Device video needs reattachment" else "Device video"
+                                } else {
+                                    "YouTube"
+                                }} · " +
+                                    "${task.repetitions} repetitions",
+                                color = Muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            TextButton(
+                                onClick = {
+                                    onFormChanged(AssignmentForm.fromTask(task))
+                                },
+                            ) {
+                                Text("Edit")
+                            }
+                            TextButton(onClick = { pendingRemoval = task }) {
+                                Text("Remove", color = Danger)
+                            }
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+
+        Surface(
+            color = Paper,
+            shadowElevation = 8.dp,
+        ) {
+            Column(
+                Modifier.fillMaxWidth().imePadding().padding(horizontal = 18.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Button(
+                    onClick = onAdd,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Forest),
+                ) {
+                    Text(
+                        if (form.editingTaskId == null) {
+                            "Save assignment"
+                        } else {
+                            "Update assignment"
+                        },
+                    )
+                }
+                Text(
+                    "Saves for ${friendlyFullDate(form.assignedDate)}. Sheet music is optional.",
+                    color = Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (form.editingTaskId != null) {
+                    TextButton(
+                        onClick = {
+                            onFormChanged(AssignmentForm(assignedDate = form.assignedDate))
+                        },
+                    ) {
+                        Text("Cancel editing")
                     }
                 }
             }
         }
-        item { Spacer(Modifier.height(8.dp)) }
+    }
+
+    pendingRemoval?.let { task ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = null },
+            title = { Text("Remove assignment?") },
+            text = {
+                Text(
+                    "This removes “${task.title}” and its recorded completion state. " +
+                        "Saved practice videos remain in the practice log.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRemove(task)
+                        pendingRemoval = null
+                        if (form.editingTaskId == task.id) {
+                            onFormChanged(AssignmentForm(assignedDate = form.assignedDate))
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Danger),
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoval = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 
@@ -373,12 +513,14 @@ fun PracticeSessionPage(
     onRecordingSaved: (RecordingFile) -> Unit,
     onRecordingChanged: (Boolean) -> Unit,
     onCompleteRepetition: () -> Unit,
+    onResumeTimer: () -> Unit,
     onOpenUri: (Uri, String) -> Unit,
     onShare: (Uri) -> Unit,
-    onDeleteRecording: (RecordingFile) -> Unit,
+    onDeleteRecording: (RecordingFile) -> Boolean,
     onFinish: () -> Unit,
 ) {
     var savedTake by remember(task.id) { mutableStateOf<RecordingFile?>(null) }
+    var pendingDelete by remember(task.id) { mutableStateOf<RecordingFile?>(null) }
     val completedRepetitions = state.todayProgress.repetitionsFor(task.id)
     val sheetMusicUri = task.sheetMusicUri
 
@@ -415,6 +557,33 @@ fun PracticeSessionPage(
             }
         }
 
+        if (!state.running) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Amber.copy(alpha = 0.18f)),
+                    shape = RoundedCornerShape(18.dp),
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("Practice timer paused", fontWeight = FontWeight.Bold)
+                        Text(
+                            "The timer pauses when Practice Partner leaves the screen.",
+                            color = Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(
+                            onClick = onResumeTimer,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Resume practice timer")
+                        }
+                    }
+                }
+            }
+        }
+
         if (task.coachNote.isNotBlank() || task.whyImportant.isNotBlank() || sheetMusicUri != null) {
             item {
                 Card(
@@ -436,6 +605,7 @@ fun PracticeSessionPage(
                         if (sheetMusicUri != null) {
                             OutlinedButton(
                                 onClick = { onOpenUri(sheetMusicUri.toUri(), "*/*") },
+                                enabled = !state.recordingActive,
                             ) {
                                 Text("Open sheet music")
                             }
@@ -528,8 +698,7 @@ fun PracticeSessionPage(
                         }
                         TextButton(
                             onClick = {
-                                onDeleteRecording(recording)
-                                savedTake = null
+                                pendingDelete = recording
                             },
                         ) {
                             Text("Delete take", color = Danger)
@@ -550,22 +719,88 @@ fun PracticeSessionPage(
         }
         item { Spacer(Modifier.height(8.dp)) }
     }
+
+    pendingDelete?.let { recording ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Delete this take?") },
+            text = { Text("The video and its practice-log entry will be permanently removed.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (onDeleteRecording(recording)) {
+                            savedTake = null
+                            pendingDelete = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Danger),
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 }
 
 @Composable
 fun SummaryPage(
     state: PracticeUiState,
+    onPreviousDate: () -> Unit,
+    onNextDate: () -> Unit,
+    onToday: () -> Unit,
     onOpenUri: (Uri, String) -> Unit,
     onShare: (Uri) -> Unit,
-    onDeleteRecording: (PracticeEvent) -> Unit,
+    onDeleteRecording: (PracticeEvent) -> Boolean,
 ) {
-    val progress = state.todayProgress
-    val taskIds = state.todayTasks.mapTo(mutableSetOf()) { it.id }
+    val progress = state.summaryProgress
+    val tasks = state.summaryTasks
+    val events = state.summaryEvents
+    val taskIds = tasks.mapTo(mutableSetOf()) { it.id }
     val completedCount = progress.completedTaskIds.count { it in taskIds }
+    val canGoPrevious = state.historyDates.any { it < state.summaryDate }
+    val canGoNext = state.historyDates.any { it > state.summaryDate }
+    val displayElapsed = if (state.summaryDate == state.currentDate) {
+        state.elapsedSeconds
+    } else {
+        progress.elapsedSeconds
+    }
+    var pendingDelete by remember { mutableStateOf<PracticeEvent?>(null) }
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        item {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onPreviousDate,
+                    enabled = canGoPrevious,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Previous")
+                }
+                OutlinedButton(
+                    onClick = onToday,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Today")
+                }
+                OutlinedButton(
+                    onClick = onNextDate,
+                    enabled = canGoNext,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Next")
+                }
+            }
+        }
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Forest),
@@ -578,12 +813,12 @@ fun SummaryPage(
                 ) {
                     Column {
                         Text(
-                            friendlyFullDate(state.currentDate).uppercase(),
+                            friendlyFullDate(state.summaryDate).uppercase(),
                             color = Paper.copy(alpha = 0.78f),
                             style = MaterialTheme.typography.labelMedium,
                         )
                         Text(
-                            formatDuration(state.elapsedSeconds),
+                            formatDuration(displayElapsed),
                             color = Paper,
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
@@ -592,7 +827,7 @@ fun SummaryPage(
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            "$completedCount / ${state.todayTasks.size}",
+                            "$completedCount / ${tasks.size}",
                             color = Paper,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
@@ -606,10 +841,15 @@ fun SummaryPage(
         item {
             Text("Assignment progress", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
-        if (state.todayTasks.isEmpty()) {
-            item { EmptyCard("No assignments today", "Create a plan to start tracking repetitions.") }
+        if (tasks.isEmpty()) {
+            item {
+                EmptyCard(
+                    "No assignments for this date",
+                    "Choose another date or create a plan in Assign.",
+                )
+            }
         }
-        items(state.todayTasks, key = { "summary-${it.id}" }) { task ->
+        items(tasks, key = { "summary-${it.id}" }) { task ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = Paper),
                 shape = RoundedCornerShape(16.dp),
@@ -631,9 +871,9 @@ fun SummaryPage(
         }
 
         item {
-            Text("Today’s practice log", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Practice log", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
-        if (state.todayEvents.isEmpty()) {
+        if (events.isEmpty()) {
             item {
                 EmptyCard(
                     "No practice logged yet",
@@ -641,7 +881,7 @@ fun SummaryPage(
                 )
             }
         }
-        items(state.todayEvents.reversed(), key = { it.id }) { event ->
+        items(events.reversed(), key = { it.id }) { event ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = Paper),
                 shape = RoundedCornerShape(16.dp),
@@ -667,7 +907,7 @@ fun SummaryPage(
                                 Text("Share…")
                             }
                             if (event.videoPath != null) {
-                                TextButton(onClick = { onDeleteRecording(event) }) {
+                                TextButton(onClick = { pendingDelete = event }) {
                                     Text("Delete", color = Danger)
                                 }
                             }
@@ -677,6 +917,31 @@ fun SummaryPage(
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
+    }
+
+    pendingDelete?.let { event ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Delete this recording?") },
+            text = { Text("The video and its practice-log entry will be permanently removed.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (onDeleteRecording(event)) {
+                            pendingDelete = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Danger),
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 
@@ -708,5 +973,5 @@ fun formatDuration(seconds: Long): String {
 private fun timeLabel(seconds: Int): String = "%d:%02d".format(seconds / 60, seconds % 60)
 
 private fun friendlyFullDate(date: String): String = runCatching {
-    LocalDate.parse(date).format(DateTimeFormatter.ofPattern("EEEE, MMMM d"))
+    LocalDate.parse(date).format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"))
 }.getOrDefault(date)

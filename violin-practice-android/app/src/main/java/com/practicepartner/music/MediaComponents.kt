@@ -31,6 +31,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -51,6 +52,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -78,7 +81,7 @@ fun ReferenceVideoPanel(task: PracticeTask, modifier: Modifier = Modifier) {
                 }
             }
             Text(
-                "Play only the assigned clip, then record each repetition separately.",
+                "Play only the assigned clip. Complete a repetition after the assigned work is finished.",
                 color = Muted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -215,6 +218,7 @@ fun CameraRecorderPanel(
         )
     }
     var isRecording by remember { mutableStateOf(false) }
+    var isStarting by remember { mutableStateOf(false) }
     var recordingMessage by remember { mutableStateOf("") }
     var recording by remember { mutableStateOf<Recording?>(null) }
     var countdown by remember { mutableIntStateOf(0) }
@@ -260,6 +264,9 @@ fun CameraRecorderPanel(
 
     fun startRecording() {
         val camera = controller ?: return
+        isStarting = true
+        onRecordingChanged(true)
+        recordingMessage = "Starting the camera…"
         val externalDirectory = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
         val directory = if (externalDirectory != null) {
             File(externalDirectory, "Practice Partner")
@@ -277,11 +284,13 @@ fun CameraRecorderPanel(
             ) { event ->
                 when (event) {
                     is VideoRecordEvent.Start -> {
+                        isStarting = false
                         isRecording = true
                         onRecordingChanged(true)
                         recordingMessage = "Recording. Tap Stop take when this repetition is finished."
                     }
                     is VideoRecordEvent.Finalize -> {
+                        isStarting = false
                         isRecording = false
                         recording = null
                         onRecordingChanged(false)
@@ -302,6 +311,7 @@ fun CameraRecorderPanel(
             }
         } catch (error: Exception) {
             file.delete()
+            isStarting = false
             isRecording = false
             recording = null
             onRecordingChanged(false)
@@ -310,7 +320,7 @@ fun CameraRecorderPanel(
     }
 
     fun beginCountdown() {
-        if (controller == null || isRecording || countdown > 0) return
+        if (controller == null || isRecording || isStarting || countdown > 0) return
         countdownJob?.cancel()
         countdownJob = scope.launch {
             for (value in 3 downTo 1) {
@@ -322,8 +332,20 @@ fun CameraRecorderPanel(
         }
     }
 
-    DisposableEffect(controller) {
+    DisposableEffect(controller, lifecycleOwner) {
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                countdownJob?.cancel()
+                countdown = 0
+                recording?.let {
+                    recordingMessage = "The take was stopped because Practice Partner left the screen."
+                    it.stop()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
             countdownJob?.cancel()
             recording?.stop()
             controller?.unbind()
@@ -406,6 +428,13 @@ fun CameraRecorderPanel(
                 ) {
                     Text("Stop take")
                 }
+                isStarting -> Button(
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Starting camera…")
+                }
                 else -> Button(
                     onClick = ::beginCountdown,
                     enabled = countdown == 0,
@@ -424,6 +453,16 @@ fun CameraRecorderPanel(
                     color = Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                OutlinedButton(
+                    onClick = {
+                        permissionRequest.launch(
+                            arrayOf(android.Manifest.permission.RECORD_AUDIO),
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Allow microphone")
+                }
             }
         }
     }

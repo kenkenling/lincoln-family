@@ -12,9 +12,9 @@ android {
     defaultConfig {
         applicationId = "com.practicepartner.music"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        targetSdk = 37
+        versionCode = 9
+        versionName = "0.6.0"
     }
 
     buildFeatures { compose = true }
@@ -43,4 +43,5 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraX")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
 }

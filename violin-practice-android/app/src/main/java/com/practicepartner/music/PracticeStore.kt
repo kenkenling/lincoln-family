@@ -6,24 +6,136 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
+data class PracticeLoadResult(
+    val snapshot: PracticeSnapshot,
+    val warning: String? = null,
+)
+
 class PracticeStore(context: Context) {
     private val prefs = context.getSharedPreferences("practice_partner_v2", Context.MODE_PRIVATE)
     private val legacyPrefs = context.getSharedPreferences("practice_partner_v1", Context.MODE_PRIVATE)
 
     fun load(currentDate: String = currentDateKey()): PracticeSnapshot {
+        return loadWithStatus(currentDate).snapshot
+    }
+
+    fun loadWithStatus(currentDate: String = currentDateKey()): PracticeLoadResult {
         val stored = prefs.getString("snapshot", null)
         if (stored != null) {
-            return runCatching { decodeSnapshot(JSONObject(stored)) }.getOrElse { PracticeSnapshot() }
+            decodeStoredSnapshot(stored)?.let { decoded ->
+                return PracticeLoadResult(
+                    snapshot = decoded.snapshot,
+                    warning = skippedRecordWarning(decoded.skippedRecords),
+                )
+            }
+
+            val backup = prefs.getString("snapshot_backup", null)
+            val recovered = backup?.let(::decodeStoredSnapshot)
+            if (recovered != null) {
+                prefs.edit(commit = true) {
+                    putString("snapshot", backup)
+                }
+                return PracticeLoadResult(
+                    snapshot = recovered.snapshot,
+                    warning = buildString {
+                        append("Practice data was recovered from the last local backup.")
+                        skippedRecordWarning(recovered.skippedRecords)?.let {
+                            append(' ')
+                            append(it)
+                        }
+                    },
+                )
+            }
+
+            return PracticeLoadResult(
+                snapshot = PracticeSnapshot(),
+                warning = "The local practice file could not be read and no valid local backup was available.",
+            )
         }
         val migrated = migrateLegacy(currentDate)
         save(migrated)
-        return migrated
+        return PracticeLoadResult(migrated)
     }
 
     fun save(snapshot: PracticeSnapshot) {
-        prefs.edit {
-            putString("snapshot", encodeSnapshot(snapshot).toString())
+        val encoded = encodeSnapshot(snapshot).toString()
+        val previous = prefs.getString("snapshot", null)
+            ?.takeIf { decodeStoredSnapshot(it) != null }
+        prefs.edit(commit = true) {
+            if (previous != null) {
+                putString("snapshot_backup", previous)
+            }
+            putString("snapshot", encoded)
         }
+    }
+
+    fun loadLocalRevision(): Long = prefs.getLong("local_data_revision", 0L).coerceAtLeast(0L)
+
+    fun bumpLocalRevision(): Long {
+        val next = loadLocalRevision() + 1L
+        prefs.edit(commit = true) { putLong("local_data_revision", next) }
+        return next
+    }
+
+    fun loadLastSyncedRevision(): Long =
+        prefs.getLong("last_synced_revision", -1L).coerceAtLeast(-1L)
+
+    fun saveLastSyncedRevision(revision: Long) {
+        prefs.edit(commit = true) {
+            putLong("last_synced_revision", revision.coerceAtLeast(0L))
+        }
+    }
+
+    fun loadProfile(): StudentProfile {
+        val storedId = prefs.getString("student_profile_id", null)
+        val profile = StudentProfile(
+            id = storedId ?: UUID.randomUUID().toString(),
+            name = prefs.getString("student_profile_name", "Lincoln").orEmpty().ifBlank { "Lincoln" },
+            instrument = prefs.getString("student_profile_instrument", "Violin")
+                .orEmpty()
+                .ifBlank { "Violin" },
+            youtubeChannelUrl = prefs.getString("youtube_channel_url", "").orEmpty(),
+            youtubeChannelId = prefs.getString("youtube_channel_id", null),
+            youtubeChannelTitle = prefs.getString("youtube_channel_title", null),
+            youtubeAccountEmail = prefs.getString("youtube_account_email", null),
+            excelWorkbookUri = prefs.getString("excel_workbook_uri", null),
+            excelWorkbookName = prefs.getString("excel_workbook_name", null),
+            driveSpreadsheetId = prefs.getString("drive_spreadsheet_id", null),
+            driveSpreadsheetName = prefs.getString("drive_spreadsheet_name", null),
+            driveSpreadsheetUrl = prefs.getString("drive_spreadsheet_url", null),
+            driveAccountEmail = prefs.getString("drive_account_email", null),
+            driveFolderUri = prefs.getString("drive_folder_uri", null),
+            driveFolderName = prefs.getString("drive_folder_name", null),
+        )
+        if (storedId == null) saveProfile(profile)
+        return profile
+    }
+
+    fun saveProfile(profile: StudentProfile) {
+        prefs.edit(commit = true) {
+            putString("student_profile_id", profile.id)
+            putString("student_profile_name", profile.name)
+            putString("student_profile_instrument", profile.instrument)
+            putString("youtube_channel_url", profile.youtubeChannelUrl)
+            putString("youtube_channel_id", profile.youtubeChannelId)
+            putString("youtube_channel_title", profile.youtubeChannelTitle)
+            putString("youtube_account_email", profile.youtubeAccountEmail)
+            putString("excel_workbook_uri", profile.excelWorkbookUri)
+            putString("excel_workbook_name", profile.excelWorkbookName)
+            putString("drive_spreadsheet_id", profile.driveSpreadsheetId)
+            putString("drive_spreadsheet_name", profile.driveSpreadsheetName)
+            putString("drive_spreadsheet_url", profile.driveSpreadsheetUrl)
+            putString("drive_account_email", profile.driveAccountEmail)
+            putString("drive_folder_uri", profile.driveFolderUri)
+            putString("drive_folder_name", profile.driveFolderName)
+        }
+    }
+
+    fun loadLastCloudSyncAt(): Long? =
+        prefs.getLong("last_cloud_sync_at", 0L).takeIf { it > 0L }
+
+    fun saveLastCloudSyncAt(atMillis: Long) {
+        prefs.edit(commit = true) { putLong("last_cloud_sync_at", atMillis) }
     }
 
     private fun migrateLegacy(currentDate: String): PracticeSnapshot {
@@ -128,66 +240,110 @@ class PracticeStore(context: Context) {
         })
     }
 
-    private fun decodeSnapshot(root: JSONObject): PracticeSnapshot {
+    private fun decodeStoredSnapshot(value: String): DecodedPracticeSnapshot? =
+        runCatching { decodeSnapshot(JSONObject(value)) }.getOrNull()
+
+    private fun decodeSnapshot(root: JSONObject): DecodedPracticeSnapshot {
+        require(
+            root.has("tasks") &&
+                root.has("progress") &&
+                root.has("events"),
+        ) {
+            "Practice snapshot is missing required sections."
+        }
+        var skippedRecords = 0
         val taskRows = root.optJSONArray("tasks") ?: JSONArray()
-        val tasks = (0 until taskRows.length()).map { index ->
-            val row = taskRows.getJSONObject(index)
-            PracticeTask(
-                id = row.getString("id"),
-                assignedDate = row.optString("assignedDate", currentDateKey()),
-                title = row.getString("title"),
-                source = row.getString("source"),
-                sourceType = runCatching { SourceType.valueOf(row.optString("sourceType")) }
-                    .getOrElse { sourceTypeFor(row.optString("source")) ?: SourceType.YOUTUBE },
-                startSeconds = row.optInt("startSeconds", 0),
-                endSeconds = row.optIntOrNull("endSeconds"),
-                repetitions = row.optInt("repetitions", 1).coerceIn(1, 20),
-                coachNote = row.optString("coachNote"),
-                whyImportant = row.optString("whyImportant"),
-                sheetMusicUri = row.optNullableString("sheetMusicUri"),
-            )
+        val tasks = (0 until taskRows.length()).mapNotNull { index ->
+            runCatching {
+                val row = taskRows.getJSONObject(index)
+                val id = row.getString("id").trim()
+                val title = row.getString("title").trim()
+                val source = row.getString("source").trim()
+                require(id.isNotBlank() && title.isNotBlank())
+                val sourceType = runCatching { SourceType.valueOf(row.optString("sourceType")) }
+                    .getOrElse { sourceTypeFor(source) ?: error("Unsupported source") }
+                PracticeTask(
+                    id = id,
+                    assignedDate = row.optString("assignedDate", currentDateKey()),
+                    title = title,
+                    source = source,
+                    sourceType = sourceType,
+                    startSeconds = row.optInt("startSeconds", 0).coerceAtLeast(0),
+                    endSeconds = row.optIntOrNull("endSeconds"),
+                    repetitions = row.optInt("repetitions", 1).coerceIn(1, 20),
+                    coachNote = row.optString("coachNote"),
+                    whyImportant = row.optString("whyImportant"),
+                    sheetMusicUri = row.optNullableString("sheetMusicUri"),
+                )
+            }.getOrElse {
+                skippedRecords += 1
+                null
+            }
         }
 
         val progressRows = root.optJSONArray("progress") ?: JSONArray()
-        val progress = (0 until progressRows.length()).associate { index ->
-            val row = progressRows.getJSONObject(index)
-            val date = row.getString("date")
-            val completedRows = row.optJSONArray("completedTaskIds") ?: JSONArray()
-            val completed = (0 until completedRows.length()).mapTo(mutableSetOf()) {
-                completedRows.getString(it)
-            }
-            val repetitionsObject = row.optJSONObject("repetitionsByTask") ?: JSONObject()
-            val repetitions = buildMap {
-                repetitionsObject.keys().forEach { taskId ->
-                    put(taskId, repetitionsObject.optInt(taskId, 0))
+        val progress = (0 until progressRows.length()).mapNotNull { index ->
+            runCatching {
+                val row = progressRows.getJSONObject(index)
+                val date = row.getString("date")
+                val completedRows = row.optJSONArray("completedTaskIds") ?: JSONArray()
+                val completed = (0 until completedRows.length()).mapTo(mutableSetOf()) {
+                    completedRows.getString(it)
                 }
+                val repetitionsObject = row.optJSONObject("repetitionsByTask") ?: JSONObject()
+                val repetitions = buildMap {
+                    repetitionsObject.keys().forEach { taskId ->
+                        put(taskId, repetitionsObject.optInt(taskId, 0).coerceAtLeast(0))
+                    }
+                }
+                date to DailyProgress(
+                    date = date,
+                    completedTaskIds = completed,
+                    repetitionsByTask = repetitions,
+                    elapsedSeconds = row.optLong("elapsedSeconds", 0L).coerceAtLeast(0L),
+                )
+            }.getOrElse {
+                skippedRecords += 1
+                null
             }
-            date to DailyProgress(
-                date = date,
-                completedTaskIds = completed,
-                repetitionsByTask = repetitions,
-                elapsedSeconds = row.optLong("elapsedSeconds", 0L).coerceAtLeast(0L),
-            )
-        }
+        }.toMap()
 
         val eventRows = root.optJSONArray("events") ?: JSONArray()
-        val events = (0 until eventRows.length()).map { index ->
-            val row = eventRows.getJSONObject(index)
-            val atMillis = row.optLong("atMillis", System.currentTimeMillis())
-            PracticeEvent(
-                id = row.optString("id").ifBlank { UUID.randomUUID().toString() },
-                date = row.optString("date").ifBlank { dateKeyForMillis(atMillis) },
-                taskId = row.optNullableString("taskId"),
-                taskTitle = row.optString("taskTitle", "Practice session"),
-                event = row.optString("event"),
-                atMillis = atMillis,
-                videoUri = row.optNullableString("videoUri"),
-                videoPath = row.optNullableString("videoPath"),
-            )
+        val events = (0 until eventRows.length()).mapNotNull { index ->
+            runCatching {
+                val row = eventRows.getJSONObject(index)
+                val atMillis = row.optLong("atMillis", System.currentTimeMillis())
+                PracticeEvent(
+                    id = row.optString("id").ifBlank { UUID.randomUUID().toString() },
+                    date = row.optString("date").ifBlank { dateKeyForMillis(atMillis) },
+                    taskId = row.optNullableString("taskId"),
+                    taskTitle = row.optString("taskTitle", "Practice session"),
+                    event = row.optString("event"),
+                    atMillis = atMillis,
+                    videoUri = row.optNullableString("videoUri"),
+                    videoPath = row.optNullableString("videoPath"),
+                )
+            }.getOrElse {
+                skippedRecords += 1
+                null
+            }
         }
-        return PracticeSnapshot(tasks, progress, events.takeLast(500))
+        return DecodedPracticeSnapshot(
+            snapshot = PracticeSnapshot(tasks, progress, events.takeLast(500)),
+            skippedRecords = skippedRecords,
+        )
     }
 }
+
+private data class DecodedPracticeSnapshot(
+    val snapshot: PracticeSnapshot,
+    val skippedRecords: Int,
+)
+
+private fun skippedRecordWarning(skippedRecords: Int): String? =
+    skippedRecords.takeIf { it > 0 }?.let {
+        "Recovered the readable data and skipped $it damaged record${if (it == 1) "" else "s"}."
+    }
 
 private fun JSONObject.optNullableString(name: String): String? =
     if (!has(name) || isNull(name)) null else optString(name).takeIf(String::isNotBlank)
