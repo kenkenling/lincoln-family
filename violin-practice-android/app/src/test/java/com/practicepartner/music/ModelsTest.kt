@@ -2,7 +2,9 @@ package com.practicepartner.music
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -309,5 +311,68 @@ class ModelsTest {
             state.summaryTasks.map(PracticeTask::id).toSet(),
         )
         assertEquals(listOf("archived"), state.archivedTasksForDate("2026-11-01").map { it.id })
+    }
+
+    @Test
+    fun dateSpecificCollectionsAreCachedUntilStateIsCopied() {
+        val today = "2026-11-01"
+        val earlier = "2026-10-31"
+        val todayTask = PracticeTask(
+            id = "today-task",
+            assignedDate = today,
+            title = "Today",
+            source = "",
+            sourceType = SourceType.NONE,
+            startSeconds = 0,
+            endSeconds = null,
+            repetitions = 3,
+        )
+        val earlierTask = todayTask.copy(
+            id = "earlier-task",
+            assignedDate = earlier,
+            title = "Earlier",
+        )
+        val todayEvent = PracticeEvent(
+            id = "today-event",
+            date = today,
+            taskId = todayTask.id,
+            taskTitle = todayTask.title,
+            event = "Started",
+            atMillis = 1L,
+        )
+        val todaySession = PracticeSession(
+            id = "today-session",
+            childProfileId = "student",
+            assignmentId = todayTask.id,
+            assignmentTitle = todayTask.title,
+            instrument = "Violin",
+            date = today,
+            mode = PracticeMode.PLAY_YOURSELF,
+            startedAtMillis = 1L,
+        )
+        val state = PracticeUiState(
+            snapshot = PracticeSnapshot(
+                tasks = listOf(todayTask, earlierTask),
+                events = listOf(todayEvent),
+                sessions = listOf(todaySession),
+            ),
+            activeChildProfileId = "student",
+            currentDate = today,
+            summaryDate = earlier,
+        )
+
+        assertSame(state.todayTasks, state.todayTasks)
+        assertSame(state.todayEvents, state.todayEvents)
+        assertSame(state.todaySessions, state.todaySessions)
+        assertSame(state.summaryTasks, state.summaryTasks)
+        assertSame(state.summaryEvents, state.summaryEvents)
+        assertSame(state.summarySessions, state.summarySessions)
+        assertSame(state.historyDates, state.historyDates)
+
+        val copied = state.copy(currentDate = earlier)
+
+        assertNotSame(state.todayTasks, copied.todayTasks)
+        assertEquals(listOf(earlierTask), copied.todayTasks)
+        assertEquals(listOf(earlier, today), copied.historyDates)
     }
 }

@@ -227,52 +227,48 @@ data class PracticeUiState(
     val pendingReflectionSessionId: String? = null,
     val message: String = "",
 ) {
-    val todayTasks: List<PracticeTask>
-        get() = snapshot.tasks.filter {
-            it.assignedDate == currentDate && it.archivedAtMillis == null
-        }
+    val todayTasks: List<PracticeTask> = snapshot.tasks.filter {
+        it.assignedDate == currentDate && it.archivedAtMillis == null
+    }
 
-    val todayProgress: DailyProgress
-        get() = snapshot.progressByDate[currentDate] ?: DailyProgress(
-            date = currentDate,
-            childProfileId = activeChildProfileId,
-        )
+    val todayProgress: DailyProgress = snapshot.progressByDate[currentDate] ?: DailyProgress(
+        date = currentDate,
+        childProfileId = activeChildProfileId,
+    )
 
-    val todayEvents: List<PracticeEvent>
-        get() = snapshot.events.filter { it.date == currentDate }
+    val todayEvents: List<PracticeEvent> =
+        snapshot.events.filter { it.date == currentDate }
 
-    val todaySessions: List<PracticeSession>
-        get() = snapshot.sessions.filter { it.date == currentDate }
+    val todaySessions: List<PracticeSession> =
+        snapshot.sessions.filter { it.date == currentDate }
 
-    val summaryTasks: List<PracticeTask>
-        get() = snapshot.tasks.filter { it.assignedDate == summaryDate }
+    val summaryTasks: List<PracticeTask> =
+        snapshot.tasks.filter { it.assignedDate == summaryDate }
 
-    val summaryProgress: DailyProgress
-        get() = snapshot.progressByDate[summaryDate] ?: DailyProgress(
-            date = summaryDate,
-            childProfileId = activeChildProfileId,
-        )
+    val summaryProgress: DailyProgress = snapshot.progressByDate[summaryDate] ?: DailyProgress(
+        date = summaryDate,
+        childProfileId = activeChildProfileId,
+    )
 
-    val summaryEvents: List<PracticeEvent>
-        get() = snapshot.events.filter { it.date == summaryDate }
+    val summaryEvents: List<PracticeEvent> =
+        snapshot.events.filter { it.date == summaryDate }
 
-    val summarySessions: List<PracticeSession>
-        get() = snapshot.sessions.filter { it.date == summaryDate }
+    val summarySessions: List<PracticeSession> =
+        snapshot.sessions.filter { it.date == summaryDate }
 
-    val historyDates: List<String>
-        get() = (
-            snapshot.tasks.map(PracticeTask::assignedDate) +
-                snapshot.progressByDate.keys +
-                snapshot.events.map(PracticeEvent::date) +
-                snapshot.sessions.map(PracticeSession::date) +
-                currentDate
-            ).distinct().sorted()
+    val historyDates: List<String> = (
+        snapshot.tasks.map(PracticeTask::assignedDate) +
+            snapshot.progressByDate.keys +
+            snapshot.events.map(PracticeEvent::date) +
+            snapshot.sessions.map(PracticeSession::date) +
+            currentDate
+        ).distinct().sorted()
 
-    val activeTask: PracticeTask?
-        get() = snapshot.tasks.firstOrNull { it.id == activeTaskId }
+    val activeTask: PracticeTask? =
+        snapshot.tasks.firstOrNull { it.id == activeTaskId }
 
-    val pendingReflectionSession: PracticeSession?
-        get() = snapshot.sessions.firstOrNull { it.id == pendingReflectionSessionId }
+    val pendingReflectionSession: PracticeSession? =
+        snapshot.sessions.firstOrNull { it.id == pendingReflectionSessionId }
 
     fun tasksForDate(date: String): List<PracticeTask> =
         snapshot.tasks.filter {
