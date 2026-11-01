@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Settings
@@ -79,12 +80,24 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
     val context = LocalContext.current
     val state = viewModel.uiState
     val snackbarHostState = remember { SnackbarHostState() }
-    var form by remember(state.currentDate) {
+    var form by remember(state.currentDate, viewModel.studentProfile.id) {
         mutableStateOf(AssignmentForm(assignedDate = state.currentDate))
     }
+    var showProfileChooser by rememberSaveable { mutableStateOf(true) }
+    var showAdultGate by rememberSaveable { mutableStateOf(false) }
     var showProfileDialog by rememberSaveable { mutableStateOf(false) }
+    var showFamilyProfiles by rememberSaveable { mutableStateOf(false) }
     var showGrownUpTools by rememberSaveable { mutableStateOf(false) }
     var csvDatePending by rememberSaveable { mutableStateOf(state.currentDate) }
+    var profileArchivePendingId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(viewModel.adultUnlocked) {
+        if (!viewModel.adultUnlocked) {
+            showProfileDialog = false
+            showFamilyProfiles = false
+            showGrownUpTools = false
+        }
+    }
 
     LaunchedEffect(state.message) {
         if (state.message.isNotBlank()) {
@@ -119,6 +132,10 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
     }
 
     fun shareVideo(uri: Uri, fileName: String?) {
+        if (!viewModel.adultUnlocked) {
+            viewModel.setMessage("Unlock Parent Space before sharing a practice video.")
+            return
+        }
         val title = fileName?.removeSuffix(".mp4")?.takeIf(String::isNotBlank)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "video/mp4"
@@ -141,6 +158,15 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         }
     }
 
+    fun openParentSpace() {
+        if (viewModel.adultUnlocked) {
+            showProfileChooser = false
+            showGrownUpTools = true
+        } else {
+            showAdultGate = true
+        }
+    }
+
     val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             if (persistReadPermission(uri)) {
@@ -148,10 +174,11 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 viewModel.setMessage("Reference video selected.")
             } else {
                 viewModel.setMessage(
-                    "Practice Partner could not keep access to that video. Choose it again from Files.",
+                    "LK Practice could not keep access to that video. Choose it again from Files.",
                 )
             }
         }
+        viewModel.endAdultExternalAction()
     }
     val pickSheetMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -160,10 +187,11 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 viewModel.setMessage("Sheet music attached.")
             } else {
                 viewModel.setMessage(
-                    "Practice Partner could not keep access to that sheet music. Choose it again from Files.",
+                    "LK Practice could not keep access to that sheet music. Choose it again from Files.",
                 )
             }
         }
+        viewModel.endAdultExternalAction()
     }
     val createExcelWorkbook = rememberLauncherForActivityResult(
         CreateLocalDocument(XLSX_MIME_TYPE),
@@ -173,10 +201,11 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 viewModel.createLocalWorkbook(uri.toString())
             } else {
                 viewModel.setMessage(
-                    "Practice Partner could not keep permission to update this local file. Choose it again.",
+                    "LK Practice could not keep permission to update this local file. Choose it again.",
                 )
             }
         }
+        viewModel.endAdultExternalAction()
     }
     val chooseExcelWorkbook = rememberLauncherForActivityResult(
         OpenLocalDocument(),
@@ -186,10 +215,23 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 viewModel.connectExistingLocalWorkbook(uri.toString())
             } else {
                 viewModel.setMessage(
-                    "Practice Partner could not keep permission to update this local file. Choose it again.",
+                    "LK Practice could not keep permission to update this local file. Choose it again.",
                 )
             }
         }
+        viewModel.endAdultExternalAction()
+    }
+    val createProfileArchive = rememberLauncherForActivityResult(
+        CreateLocalDocument(ZIP_MIME_TYPE),
+    ) { uri ->
+        val profileId = profileArchivePendingId
+        if (uri != null && profileId != null) {
+            // This is a one-time export. The picker grant is enough for the current write;
+            // unlike the configured workbook, LK Practice does not retain access afterward.
+            viewModel.exportChildProfileArchive(profileId, uri.toString())
+        }
+        profileArchivePendingId = null
+        viewModel.endAdultExternalAction()
     }
     val importCsv = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -199,6 +241,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             }.onSuccess { viewModel.importCsv(it, csvDatePending) }
                 .onFailure { viewModel.setMessage(it.message ?: "Could not import the CSV.") }
         }
+        viewModel.endAdultExternalAction()
     }
     val exportCsv = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv"),
@@ -216,12 +259,19 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 viewModel.setMessage(it.message ?: "Could not export the assignments.")
             }
         }
+        viewModel.endAdultExternalAction()
     }
-    BackHandler(enabled = state.activeTaskId != null || state.page != AppPage.TODAY) {
-        if (state.activeTaskId != null) {
-            viewModel.finishPractice()
-        } else {
-            viewModel.setPage(AppPage.TODAY)
+    BackHandler(enabled = !showProfileChooser) {
+        when {
+            state.activeTaskId != null -> viewModel.finishPractice()
+            state.page != AppPage.TODAY -> {
+                viewModel.setPage(AppPage.TODAY)
+                viewModel.lockAdultSpace()
+            }
+            else -> {
+                viewModel.lockAdultSpace()
+                showProfileChooser = true
+            }
         }
     }
 
@@ -230,103 +280,164 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
         ) { insets ->
-            Column(Modifier.fillMaxSize().padding(insets)) {
-                AppHeader(
-                    state = state,
-                    onOpenGrownUpTools = { showGrownUpTools = true },
-                    onReturnToToday = { viewModel.setPage(AppPage.TODAY) },
+            if (showProfileChooser) {
+                ProfileChooserScreen(
+                    household = viewModel.household,
+                    onSelectChild = { profile ->
+                        if (viewModel.selectChildProfile(profile.id)) {
+                            viewModel.lockAdultSpace()
+                            showProfileChooser = false
+                        }
+                    },
+                    onOpenParentSpace = ::openParentSpace,
+                    modifier = Modifier.padding(insets),
                 )
-                val activeTask = state.activeTask
-                if (activeTask != null) {
-                    PracticeSessionPage(
+            } else {
+                Column(Modifier.fillMaxSize().padding(insets)) {
+                    AppHeader(
                         state = state,
-                        task = activeTask,
-                        studentName = viewModel.studentProfile.name,
-                        onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
-                        onRecordingChanged = viewModel::setRecordingActive,
-                        onCompleteRepetition = { viewModel.recordRepetition(activeTask) },
-                        onResumeTimer = viewModel::resumeActivePractice,
-                        onOpenUri = ::openUri,
-                        onShare = ::shareVideo,
-                        onDeleteRecording = { recording ->
-                            viewModel.deleteRecording(recording.path)
+                        onOpenGrownUpTools = ::openParentSpace,
+                        onReturnToToday = {
+                            viewModel.setPage(AppPage.TODAY)
+                            viewModel.lockAdultSpace()
                         },
-                        onFinish = { viewModel.finishPractice() },
+                        onSwitchProfile = {
+                            viewModel.lockAdultSpace()
+                            showProfileChooser = true
+                        },
                     )
-                } else {
-                    when (state.page) {
-                        AppPage.TODAY -> TodayPage(
+                    val activeTask = state.activeTask
+                    if (activeTask != null) {
+                        PracticeSessionPage(
                             state = state,
+                            task = activeTask,
                             studentName = viewModel.studentProfile.name,
-                            onSelectMode = viewModel::setMode,
-                            onPractice = viewModel::startPractice,
-                            onToggleCompleted = viewModel::toggleCompleted,
-                        )
-                        AppPage.ASSIGN -> AssignmentPage(
-                            state = state,
-                            form = form,
-                            onFormChanged = { form = it },
-                            onPickVideo = { pickVideo.launch(arrayOf("video/*")) },
-                            onPickSheetMusic = {
-                                pickSheetMusic.launch(
-                                    arrayOf("application/pdf", "image/*"),
-                                )
-                            },
-                            onImport = {
-                                csvDatePending = form.assignedDate
-                                importCsv.launch(
-                                    arrayOf("text/csv", "text/*", "application/vnd.ms-excel"),
-                                )
-                            },
-                            onExport = {
-                                csvDatePending = form.assignedDate
-                                exportCsv.launch(
-                                    "practice-assignment-${form.assignedDate}.csv",
-                                )
-                            },
-                            onAdd = {
-                                val added = viewModel.saveAssignment(
-                                    taskId = form.editingTaskId,
-                                    assignedDateText = form.assignedDate,
-                                    titleText = form.title,
-                                    sourceText = form.source,
-                                    startText = form.start,
-                                    endText = form.end,
-                                    repetitionsText = form.repetitions,
-                                    coachNote = form.coachNote,
-                                    whyImportant = form.whyImportant,
-                                    sheetMusicUri = form.sheetMusicUri,
-                                )
-                                if (added) {
-                                    form = AssignmentForm(assignedDate = form.assignedDate)
-                                }
-                            },
-                            onRemove = viewModel::removeTask,
-                        )
-                        AppPage.SUMMARY -> SummaryPage(
-                            state = state,
-                            onPreviousDate = viewModel::showPreviousSummaryDate,
-                            onNextDate = viewModel::showNextSummaryDate,
-                            onToday = viewModel::showTodaySummary,
+                            onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
+                            onRecordingChanged = viewModel::setRecordingActive,
+                            onCompleteRepetition = { viewModel.recordRepetition(activeTask) },
+                            onResumeTimer = viewModel::resumeActivePractice,
                             onOpenUri = ::openUri,
-                            onShare = ::shareVideo,
-                            onDeleteRecording = { event ->
-                                event.videoPath?.let(viewModel::deleteRecording) ?: false
-                            },
+                            onFinish = { viewModel.finishPractice() },
                         )
+                    } else {
+                        when (state.page) {
+                            AppPage.TODAY -> TodayPage(
+                                state = state,
+                                studentName = viewModel.studentProfile.name,
+                                onSelectMode = viewModel::setMode,
+                                onPractice = viewModel::startPractice,
+                                onToggleCompleted = viewModel::toggleCompleted,
+                            )
+                            AppPage.ASSIGN -> AssignmentPage(
+                                state = state,
+                                studentName = viewModel.studentProfile.name,
+                                instrument = viewModel.studentProfile.instrument,
+                                form = form,
+                                onFormChanged = { form = it },
+                                onPickVideo = {
+                                    if (viewModel.beginAdultExternalAction()) {
+                                        pickVideo.launch(arrayOf("video/*"))
+                                    }
+                                },
+                                onPickSheetMusic = {
+                                    if (viewModel.beginAdultExternalAction()) {
+                                        pickSheetMusic.launch(
+                                            arrayOf("application/pdf", "image/*"),
+                                        )
+                                    }
+                                },
+                                onImport = {
+                                    csvDatePending = form.assignedDate
+                                    if (viewModel.beginAdultExternalAction()) {
+                                        importCsv.launch(
+                                            arrayOf(
+                                                "text/csv",
+                                                "text/*",
+                                                "application/vnd.ms-excel",
+                                            ),
+                                        )
+                                    }
+                                },
+                                onExport = {
+                                    csvDatePending = form.assignedDate
+                                    if (viewModel.beginAdultExternalAction()) {
+                                        exportCsv.launch(
+                                            "practice-assignment-${form.assignedDate}.csv",
+                                        )
+                                    }
+                                },
+                                onAdd = {
+                                    val added = viewModel.saveAssignment(
+                                        taskId = form.editingTaskId,
+                                        assignedDateText = form.assignedDate,
+                                        titleText = form.title,
+                                        sourceText = form.source,
+                                        startText = form.start,
+                                        endText = form.end,
+                                        repetitionsText = form.repetitions,
+                                        coachNote = form.coachNote,
+                                        whyImportant = form.whyImportant,
+                                        sheetMusicUri = form.sheetMusicUri,
+                                        assignmentType = form.assignmentType,
+                                        goalType = form.goalType,
+                                        targetMinutesText = form.targetMinutes,
+                                        enabledModes = form.enabledModes,
+                                    )
+                                    if (added) {
+                                        form = AssignmentForm(assignedDate = form.assignedDate)
+                                    }
+                                },
+                                onArchive = viewModel::archiveTask,
+                                onRestore = viewModel::restoreTask,
+                                onRemove = viewModel::removeTask,
+                            )
+                            AppPage.SUMMARY -> SummaryPage(
+                                state = state,
+                                onPreviousDate = viewModel::showPreviousSummaryDate,
+                                onNextDate = viewModel::showNextSummaryDate,
+                                onToday = viewModel::showTodaySummary,
+                                onOpenUri = ::openUri,
+                                onShare = ::shareVideo,
+                                onDeleteRecording = { event ->
+                                    event.videoPath?.let(viewModel::deleteRecording) ?: false
+                                },
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    if (showGrownUpTools) {
+    state.pendingReflectionSession?.let { session ->
+        PracticeReflectionDialog(
+            session = session,
+            onSubmit = viewModel::submitReflection,
+        )
+    }
+
+    if (showAdultGate) {
+        AdultGateDialog(
+            pinConfigured = viewModel.adultPinConfigured,
+            onUnlock = viewModel::unlockAdultSpace,
+            onCreatePin = viewModel::createAdultPin,
+            onGranted = {
+                showAdultGate = false
+                showProfileChooser = false
+                showGrownUpTools = true
+            },
+            onDismiss = { showAdultGate = false },
+        )
+    }
+
+    if (showGrownUpTools && viewModel.adultUnlocked) {
         GrownUpToolsDialog(
             currentPage = state.page,
             studentName = viewModel.studentProfile.name,
             onOpenToday = {
                 showGrownUpTools = false
                 viewModel.setPage(AppPage.TODAY)
+                viewModel.lockAdultSpace()
             },
             onOpenAssignments = {
                 showGrownUpTools = false
@@ -336,25 +447,65 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                 showGrownUpTools = false
                 viewModel.setPage(AppPage.SUMMARY)
             },
+            onManageProfiles = {
+                showGrownUpTools = false
+                showFamilyProfiles = true
+            },
             onOpenProfile = {
                 showGrownUpTools = false
                 showProfileDialog = true
             },
-            onDismiss = { showGrownUpTools = false },
+            onDismiss = {
+                showGrownUpTools = false
+                if (state.page == AppPage.TODAY) viewModel.lockAdultSpace()
+            },
         )
     }
 
-    if (showProfileDialog) {
+    if (showFamilyProfiles && viewModel.adultUnlocked) {
+        FamilyProfilesDialog(
+            profiles = viewModel.household.childProfiles,
+            activeProfileId = viewModel.studentProfile.id,
+            onSelectProfile = { profile -> viewModel.selectChildProfile(profile.id) },
+            onAddProfile = viewModel::addChildProfile,
+            onExportProfile = { profile ->
+                profileArchivePendingId = profile.id
+                if (viewModel.beginAdultExternalAction()) {
+                    createProfileArchive.launch(
+                        viewModel.suggestedProfileArchiveFileName(profile.id),
+                    )
+                } else {
+                    profileArchivePendingId = null
+                }
+            },
+            onDeleteProfile = { profile ->
+                viewModel.deleteChildProfile(profile.id)
+            },
+            onDismiss = {
+                showFamilyProfiles = false
+                showGrownUpTools = true
+            },
+        )
+    }
+
+    if (showProfileDialog && viewModel.adultUnlocked) {
         LocalProfileDialog(
             profile = viewModel.studentProfile,
             fileState = viewModel.localFileState,
-            onDismiss = { showProfileDialog = false },
+            onDismiss = {
+                showProfileDialog = false
+                showGrownUpTools = true
+            },
             onSaveProfile = viewModel::saveProfile,
             onCreateFile = {
-                createExcelWorkbook.launch(viewModel.suggestedExcelFileName())
+                if (viewModel.beginAdultExternalAction()) {
+                    createExcelWorkbook.launch(viewModel.suggestedExcelFileName())
+                }
             },
             onChooseExistingFile = {
-                chooseExcelWorkbook.launch(arrayOf(XLSX_MIME_TYPE))
+                if (viewModel.beginAdultExternalAction()) {
+                    chooseExcelWorkbook.launch(arrayOf(XLSX_MIME_TYPE))
+                }
             },
             onSaveFile = viewModel::saveLocalWorkbook,
             onLoadFile = viewModel::loadAssignmentsFromLocalFile,
@@ -370,6 +521,7 @@ private fun AppHeader(
     state: PracticeUiState,
     onOpenGrownUpTools: () -> Unit,
     onReturnToToday: () -> Unit,
+    onSwitchProfile: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
@@ -393,7 +545,7 @@ private fun AppHeader(
             Modifier.weight(1f).padding(start = 8.dp),
         ) {
             Text(
-                "Practice Partner",
+                "LK Practice",
                 style = MaterialTheme.typography.labelLarge,
                 color = DeepSky,
                 fontFamily = FontFamily.Cursive,
@@ -426,6 +578,18 @@ private fun AppHeader(
             }
         } else {
             IconButton(
+                onClick = onSwitchProfile,
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(CloudWhite.copy(alpha = 0.94f), CircleShape),
+            ) {
+                Icon(
+                    Icons.Default.AccountCircle,
+                    contentDescription = "Switch practice profile",
+                    tint = DeepSky,
+                )
+            }
+            IconButton(
                 onClick = onOpenGrownUpTools,
                 modifier = Modifier
                     .size(48.dp)
@@ -443,6 +607,7 @@ private fun AppHeader(
 
 private const val XLSX_MIME_TYPE =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+private const val ZIP_MIME_TYPE = "application/zip"
 
 private class CreateLocalDocument(
     private val mimeType: String,

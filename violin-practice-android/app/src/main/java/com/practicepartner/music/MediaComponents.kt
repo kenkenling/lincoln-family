@@ -74,10 +74,15 @@ fun ReferenceVideoPanel(task: PracticeTask, modifier: Modifier = Modifier) {
             Box(
                 Modifier.fillMaxWidth().height(210.dp).background(Color.Black, RoundedCornerShape(12.dp)),
             ) {
-                if (task.sourceType == SourceType.LOCAL) {
-                    LocalVideoPlayer(task)
-                } else {
-                    YouTubePlayer(task)
+                when (task.sourceType) {
+                    SourceType.LOCAL -> LocalVideoPlayer(task)
+                    SourceType.YOUTUBE -> YouTubePlayer(task)
+                    SourceType.NONE -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("No reference video for this mission.", color = Color.White)
+                    }
                 }
             }
             Text(
@@ -345,7 +350,7 @@ fun CameraRecorderPanel(
                 countdownJob?.cancel()
                 countdown = 0
                 recording?.let {
-                    recordingMessage = "The take was stopped because Practice Partner left the screen."
+                    recordingMessage = "The take was stopped because LK Practice left the screen."
                     it.stop()
                 }
             }

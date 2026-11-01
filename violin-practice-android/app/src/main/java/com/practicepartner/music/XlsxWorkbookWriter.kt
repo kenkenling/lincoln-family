@@ -66,8 +66,8 @@ object XlsxWorkbookWriter {
     private fun corePropertiesXml(createdAt: Instant): String =
         XML_HEADER +
             """<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">""" +
-            "<dc:creator>Practice Partner</dc:creator>" +
-            "<cp:lastModifiedBy>Practice Partner</cp:lastModifiedBy>" +
+            "<dc:creator>LK Practice</dc:creator>" +
+            "<cp:lastModifiedBy>LK Practice</cp:lastModifiedBy>" +
             """<dcterms:created xsi:type="dcterms:W3CDTF">${xmlText(createdAt.toString())}</dcterms:created>""" +
             """<dcterms:modified xsi:type="dcterms:W3CDTF">${xmlText(createdAt.toString())}</dcterms:modified>""" +
             "</cp:coreProperties>"
@@ -77,7 +77,7 @@ object XlsxWorkbookWriter {
         append(
             """<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">""",
         )
-        append("<Application>Practice Partner</Application>")
+        append("<Application>LK Practice</Application>")
         append("<HeadingPairs><vt:vector size=\"2\" baseType=\"variant\">")
         append("<vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant>")
         append("<vt:variant><vt:i4>${sheets.size}</vt:i4></vt:variant>")

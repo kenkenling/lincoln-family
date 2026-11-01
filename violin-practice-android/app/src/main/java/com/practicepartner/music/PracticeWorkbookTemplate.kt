@@ -8,7 +8,7 @@ data class WorkbookSheet(
 )
 
 object PracticeWorkbookTemplate {
-    const val TEMPLATE_VERSION = "4"
+    const val TEMPLATE_VERSION = "7"
 
     val profileHeaders = listOf(
         "Key",
@@ -17,6 +17,8 @@ object PracticeWorkbookTemplate {
 
     val assignmentHeaders = listOf(
         "Assignment ID",
+        "Student ID",
+        "Instrument",
         "Assigned Date",
         "Title",
         "Reference Type",
@@ -28,28 +30,45 @@ object PracticeWorkbookTemplate {
         "Why Important",
         "Sheet Music Link",
         "Has Local Sheet Music",
+        "Assignment Type",
+        "Goal Type",
+        "Target Minutes",
+        "Practice Steps",
+        "Revision",
+        "Archived UTC",
     )
 
     val dailyProgressHeaders = listOf(
         "Date",
+        "Student ID",
+        "Instrument",
         "Assignment ID",
         "Assignment Title",
         "Repetitions Completed",
         "Target Repetitions",
+        "Practice Seconds",
+        "Target Practice Seconds",
         "Completed",
     )
 
     val dailySummaryHeaders = listOf(
         "Date",
+        "Student ID",
+        "Instrument",
         "Total Practice Seconds",
         "Assignments Completed",
         "Assignments Planned",
         "Repetitions Completed",
+        "Sessions",
+        "Reflections",
     )
 
     val practiceLogHeaders = listOf(
         "Event ID",
         "Date",
+        "Student ID",
+        "Instrument",
+        "Session ID",
         "Assignment ID",
         "Assignment Title",
         "Event",
@@ -58,11 +77,33 @@ object PracticeWorkbookTemplate {
         "Recording Filename",
     )
 
+    val practiceSessionHeaders = listOf(
+        "Session ID",
+        "Date",
+        "Student ID",
+        "Instrument",
+        "Assignment ID",
+        "Assignment Revision",
+        "Assignment Title",
+        "Assignment Type",
+        "Goal Type",
+        "Target Repetitions",
+        "Target Practice Seconds",
+        "Mode",
+        "Started UTC",
+        "Ended UTC",
+        "Practice Seconds",
+        "Repetitions Completed",
+        "Status",
+        "Reflection",
+    )
+
     val requiredSheetNames = listOf(
         "Profile",
         "Assignments",
         "Daily Progress",
         "Daily Summary",
+        "Practice Sessions",
         "Practice Log",
     )
 
@@ -78,11 +119,12 @@ object PracticeWorkbookTemplate {
         "Assignments" to assignmentHeaders,
         "Daily Progress" to dailyProgressHeaders,
         "Daily Summary" to dailySummaryHeaders,
+        "Practice Sessions" to practiceSessionHeaders,
         "Practice Log" to practiceLogHeaders,
     )
 
     fun title(profile: StudentProfile): String =
-        "Practice Partner - ${profile.name.trim().ifBlank { "Student" }}"
+        "LK Practice - ${profile.name.trim().ifBlank { "Student" }}"
 
     fun fileName(profile: StudentProfile): String = "${title(profile)}.xlsx"
 
@@ -119,6 +161,8 @@ object PracticeWorkbookTemplate {
                     add(
                         listOf(
                             task.id,
+                            task.childProfileId.ifBlank { profile.id },
+                            task.instrument.ifBlank { profile.instrument },
                             task.assignedDate,
                             task.title,
                             task.sourceType.name,
@@ -133,6 +177,20 @@ object PracticeWorkbookTemplate {
                             task.whyImportant,
                             task.sheetMusicUri?.takeIf { it.startsWith("https://") }.orEmpty(),
                             if (task.sheetMusicUri?.startsWith("content://") == true) "Yes" else "No",
+                            task.assignmentType.name,
+                            task.goalType.name,
+                            if (task.goalType == PracticeGoalType.TIME) {
+                                task.targetSeconds / 60
+                            } else {
+                                ""
+                            },
+                            PracticeMode.entries
+                                .filter(task.enabledModes::contains)
+                                .joinToString("|", transform = PracticeMode::name),
+                            task.revision,
+                            task.archivedAtMillis?.let {
+                                Instant.ofEpochMilli(it).toString()
+                            }.orEmpty(),
                         ),
                     )
                 }
@@ -150,24 +208,53 @@ object PracticeWorkbookTemplate {
                     add(
                         listOf(
                             progress.date,
+                            progress.childProfileId.ifBlank { profile.id },
+                            profile.instrument,
                             "",
                             "",
                             0,
                             0,
+                                0,
+                                0,
                             "No",
                         ),
                     )
                 } else {
                     taskIds.forEach { taskId ->
                         val task = taskById[taskId]
+                        val practiceSeconds = snapshot.sessions
+                            .filter { it.date == progress.date && it.assignmentId == taskId }
+                            .sumOf(PracticeSession::elapsedSeconds)
+                        val completed = taskId in progress.completedTaskIds ||
+                            when (task?.goalType) {
+                                PracticeGoalType.REPETITIONS ->
+                                    progress.repetitionsFor(taskId) >= task.repetitions
+                                PracticeGoalType.TIME ->
+                                    task.targetSeconds > 0 &&
+                                        practiceSeconds >= task.targetSeconds
+                                null -> false
+                            }
                         add(
                             listOf(
                                 progress.date,
+                                progress.childProfileId.ifBlank { profile.id },
+                                task?.instrument?.ifBlank { profile.instrument }
+                                    ?: profile.instrument,
                                 taskId,
                                 task?.title.orEmpty(),
                                 progress.repetitionsFor(taskId),
-                                task?.repetitions ?: 0,
-                                if (taskId in progress.completedTaskIds) "Yes" else "No",
+                                if (task?.goalType == PracticeGoalType.REPETITIONS) {
+                                    task.repetitions
+                                } else {
+                                    0
+                                },
+                                practiceSeconds,
+                                if (task?.goalType == PracticeGoalType.TIME) {
+                                    task.targetSeconds
+                                } else {
+                                    0
+                                },
+                                if (completed) "Yes" else "No",
                             ),
                         )
                     }
@@ -182,16 +269,62 @@ object PracticeWorkbookTemplate {
                     snapshot.progressByDate.keys
                 ).distinct().sorted()
             dates.forEach { date ->
-                val progress = snapshot.progressByDate[date] ?: DailyProgress(date)
+                val progress = snapshot.progressByDate[date] ?: DailyProgress(
+                    date = date,
+                    childProfileId = profile.id,
+                )
                 val tasks = snapshot.tasks.filter { it.assignedDate == date }
                 val taskIds = tasks.mapTo(mutableSetOf()) { it.id }
+                val sessions = snapshot.sessions.filter { it.date == date }
                 add(
                     listOf(
                         date,
+                        profile.id,
+                        profile.instrument,
                         progress.elapsedSeconds,
                         progress.completedTaskIds.count { it in taskIds },
                         tasks.size,
                         tasks.sumOf { progress.repetitionsFor(it.id) },
+                        sessions.size,
+                        sessions.count { it.reflection != null },
+                    ),
+                )
+            }
+        }
+
+        val practiceSessionRows = buildList {
+            add(practiceSessionHeaders)
+            snapshot.sessions.takeLast(500).forEach { session ->
+                add(
+                    listOf(
+                        session.id,
+                        session.date,
+                        session.childProfileId.ifBlank { profile.id },
+                        session.instrument.ifBlank { profile.instrument },
+                        session.assignmentId,
+                        session.assignmentRevision,
+                        session.assignmentTitle,
+                        session.assignmentType.name,
+                        session.goalType.name,
+                        if (session.goalType == PracticeGoalType.REPETITIONS) {
+                            session.targetRepetitions
+                        } else {
+                            0
+                        },
+                        if (session.goalType == PracticeGoalType.TIME) {
+                            session.targetSeconds
+                        } else {
+                            0
+                        },
+                        session.mode.name,
+                        Instant.ofEpochMilli(session.startedAtMillis).toString(),
+                        session.endedAtMillis?.let {
+                            Instant.ofEpochMilli(it).toString()
+                        }.orEmpty(),
+                        session.elapsedSeconds,
+                        session.repetitionsCompleted,
+                        session.status.name,
+                        session.reflection?.name.orEmpty(),
                     ),
                 )
             }
@@ -204,6 +337,10 @@ object PracticeWorkbookTemplate {
                     listOf(
                         event.id,
                         event.date,
+                        event.childProfileId.ifBlank { profile.id },
+                        taskById[event.taskId]?.instrument?.ifBlank { profile.instrument }
+                            ?: profile.instrument,
+                        event.sessionId.orEmpty(),
                         event.taskId.orEmpty(),
                         event.taskTitle,
                         event.event,
@@ -220,6 +357,7 @@ object PracticeWorkbookTemplate {
             WorkbookSheet("Assignments", assignmentRows),
             WorkbookSheet("Daily Progress", progressRows),
             WorkbookSheet("Daily Summary", dailySummaryRows),
+            WorkbookSheet("Practice Sessions", practiceSessionRows),
             WorkbookSheet("Practice Log", eventRows),
         )
     }

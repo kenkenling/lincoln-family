@@ -1,6 +1,7 @@
 package com.practicepartner.music
 
 import android.content.Context
+import android.content.Intent
 import android.os.Environment
 import android.os.SystemClock
 import androidx.core.net.toUri
@@ -11,32 +12,48 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
 class PracticeViewModel(
     private val appContext: Context,
     private val store: PracticeStore,
+    private val familyStore: FamilyStore,
     private val localWorkbookStore: LocalWorkbookStore,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val initialDate = currentDateKey()
-    private val initialLoad = store.loadWithStatus(initialDate)
+    private val initialHousehold = familyStore.loadHousehold()
+    private val initialProfile = initialHousehold.activeChildProfile
+        ?: error("Create a child profile before opening practice.")
+    private val initialLoad = store.loadWithStatus(initialProfile, initialDate)
     private val initialSnapshot = initialLoad.snapshot
-    private var localRevision = store.loadLocalRevision()
-    private var lastFileSaveRevision = store.loadLastFileSaveRevision()
+    private var localRevision = familyStore.loadLocalRevision(initialProfile.id)
+    private var lastFileSaveRevision =
+        familyStore.loadLastFileSaveRevision(initialProfile.id)
 
-    var studentProfile by mutableStateOf(store.loadProfile())
+    var household by mutableStateOf(initialHousehold)
+        private set
+
+    var studentProfile by mutableStateOf(initialProfile)
+        private set
+
+    var adultPinConfigured by mutableStateOf(familyStore.hasAdultPin())
+        private set
+
+    var adultUnlocked by mutableStateOf(false)
         private set
 
     var localFileState by mutableStateOf(
         initialLocalFileState(
             profile = studentProfile,
-            lastSavedAtMillis = store.loadLastFileSaveAt(),
+            lastSavedAtMillis = familyStore.loadLastFileSaveAt(studentProfile.id),
             file = localWorkbookStore.describe(studentProfile.excelWorkbookUri),
             localRevision = localRevision,
             lastFileSaveRevision = lastFileSaveRevision,
@@ -47,6 +64,7 @@ class PracticeViewModel(
     var uiState by mutableStateOf(
         PracticeUiState(
             snapshot = initialSnapshot,
+            activeChildProfileId = studentProfile.id,
             currentDate = initialDate,
             elapsedSeconds = initialSnapshot.progressByDate[initialDate]?.elapsedSeconds ?: 0L,
             message = initialLoad.warning.orEmpty(),
@@ -55,11 +73,14 @@ class PracticeViewModel(
         private set
 
     private var timerBaseSeconds = uiState.elapsedSeconds
+    private var sessionTimerBaseSeconds = uiState.activeSessionElapsedSeconds
     private var timerStartedAtMillis: Long? = null
     private var timerJob: Job? = null
     private var autoSaveJob: Job? = null
+    private var adultExternalActionInProgress = false
 
     init {
+        closeInterruptedSessions()
         cleanupOrphanedRecordings()
         if (localFileState.status == LocalFileStatus.UNSAVED) {
             scheduleAutomaticFileSave()
@@ -67,22 +88,162 @@ class PracticeViewModel(
     }
 
     fun setPage(page: AppPage) {
-        if (uiState.activeTaskId == null) uiState = uiState.copy(page = page)
+        if (uiState.activeTaskId != null) return
+        if (page != AppPage.TODAY && !requireAdultAccess()) return
+        uiState = uiState.copy(page = page)
+    }
+
+    fun createAdultPin(pin: String, confirmation: String): Boolean {
+        val error = when {
+            adultPinConfigured -> "A parent PIN is already configured."
+            !isValidAdultPin(pin) -> "Create a 4-digit parent PIN."
+            pin != confirmation -> "The two PIN entries do not match."
+            else -> null
+        }
+        if (error != null) {
+            setMessage(error)
+            return false
+        }
+        if (!familyStore.setAdultPin(pin)) {
+            setMessage("The parent PIN could not be saved.")
+            return false
+        }
+        adultPinConfigured = true
+        adultUnlocked = true
+        setMessage("Parent Space is protected on this device.")
+        return true
+    }
+
+    fun unlockAdultSpace(pin: String): Boolean {
+        if (!adultPinConfigured) {
+            setMessage("Create the parent PIN first.")
+            return false
+        }
+        if (!familyStore.verifyAdultPin(pin)) {
+            setMessage("That parent PIN is not correct.")
+            return false
+        }
+        adultUnlocked = true
+        return true
+    }
+
+    fun lockAdultSpace() {
+        adultExternalActionInProgress = false
+        adultUnlocked = false
+        if (uiState.activeTaskId == null && uiState.page != AppPage.TODAY) {
+            uiState = uiState.copy(page = AppPage.TODAY)
+        }
+    }
+
+    fun beginAdultExternalAction(): Boolean {
+        if (!requireAdultAccess()) return false
+        adultExternalActionInProgress = true
+        return true
+    }
+
+    fun endAdultExternalAction() {
+        adultExternalActionInProgress = false
+    }
+
+    fun selectChildProfile(childProfileId: String): Boolean {
+        val profile = household.childProfiles.firstOrNull { it.id == childProfileId }
+        if (profile == null) {
+            setMessage("That student profile is no longer available.")
+            return false
+        }
+        if (uiState.activeTaskId != null) {
+            setMessage("Finish the current practice mission before switching students.")
+            return false
+        }
+        if (uiState.recordingActive) {
+            setMessage("Stop the current recording before switching students.")
+            return false
+        }
+        if (localFileState.status == LocalFileStatus.SAVING) {
+            setMessage("Wait for the local file save before switching students.")
+            return false
+        }
+        if (profile.id == studentProfile.id) {
+            uiState = uiState.copy(page = AppPage.TODAY)
+            return true
+        }
+
+        pauseTimer(logEvent = false)
+        autoSaveJob?.cancel()
+        household = familyStore.setActiveChildProfile(profile.id)
+        studentProfile = profile
+        localRevision = familyStore.loadLocalRevision(profile.id)
+        lastFileSaveRevision = familyStore.loadLastFileSaveRevision(profile.id)
+        val load = store.loadWithStatus(profile, currentDateKey())
+        val snapshot = interruptOpenSessions(load.snapshot, wallClock())
+        if (snapshot != load.snapshot) store.save(profile, snapshot)
+        val date = currentDateKey()
+        timerBaseSeconds = snapshot.progressByDate[date]?.elapsedSeconds ?: 0L
+        sessionTimerBaseSeconds = 0L
+        timerStartedAtMillis = null
+        timerJob?.cancel()
+        timerJob = null
+        uiState = PracticeUiState(
+            snapshot = snapshot,
+            activeChildProfileId = profile.id,
+            currentDate = date,
+            elapsedSeconds = timerBaseSeconds,
+            activeSessionElapsedSeconds = 0L,
+            message = load.warning.orEmpty(),
+        )
+        localFileState = initialLocalFileState(
+            profile = profile,
+            lastSavedAtMillis = familyStore.loadLastFileSaveAt(profile.id),
+            file = localWorkbookStore.describe(profile.excelWorkbookUri),
+            localRevision = localRevision,
+            lastFileSaveRevision = lastFileSaveRevision,
+        )
+        if (localFileState.status == LocalFileStatus.UNSAVED) {
+            scheduleAutomaticFileSave()
+        }
+        return true
+    }
+
+    fun addChildProfile(
+        nameText: String,
+        instrumentText: String,
+    ): Boolean {
+        if (!requireAdultAccess()) return false
+        val name = nameText.trim()
+        val instrument = instrumentText.trim()
+        val error = profileValidationError(name, instrument)
+        if (error != null) {
+            setMessage(error)
+            return false
+        }
+        val profile = ChildProfile(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            instrument = instrument,
+        )
+        household = familyStore.addChildProfile(profile)
+        store.save(profile, PracticeSnapshot())
+        val selected = selectChildProfile(profile.id)
+        if (selected) setMessage("Added $name’s practice profile.")
+        return selected
     }
 
     fun showPreviousSummaryDate() {
+        if (!requireAdultAccess()) return
         val dates = uiState.historyDates
         val previous = dates.lastOrNull { it < uiState.summaryDate } ?: return
         uiState = uiState.copy(summaryDate = previous)
     }
 
     fun showNextSummaryDate() {
+        if (!requireAdultAccess()) return
         val dates = uiState.historyDates
         val next = dates.firstOrNull { it > uiState.summaryDate } ?: return
         uiState = uiState.copy(summaryDate = next)
     }
 
     fun showTodaySummary() {
+        if (!requireAdultAccess()) return
         uiState = uiState.copy(summaryDate = uiState.currentDate)
     }
 
@@ -102,15 +263,10 @@ class PracticeViewModel(
         nameText: String,
         instrumentText: String,
     ): Boolean {
+        if (!requireAdultAccess()) return false
         val name = nameText.trim()
         val instrument = instrumentText.trim()
-        val error = when {
-            name.isBlank() -> "Add the student’s name."
-            name.length > 80 -> "Keep the student’s name under 80 characters."
-            instrument.isBlank() -> "Add an instrument."
-            instrument.length > 80 -> "Keep the instrument under 80 characters."
-            else -> null
-        }
+        val error = profileValidationError(name, instrument)
         if (error != null) {
             setMessage(error)
             return false
@@ -120,10 +276,144 @@ class PracticeViewModel(
             instrument = instrument,
         )
         val changed = updated != studentProfile
-        store.saveProfile(updated)
+        household = familyStore.saveChildProfile(updated)
         studentProfile = updated
+        val scopedSnapshot = uiState.snapshot.scopedTo(updated)
+        if (scopedSnapshot != uiState.snapshot) {
+            store.save(updated, scopedSnapshot)
+            uiState = uiState.copy(snapshot = scopedSnapshot)
+        }
         if (changed) recordLocalMutation()
         setMessage("Profile saved.")
+        return true
+    }
+
+    fun suggestedProfileArchiveFileName(childProfileId: String): String {
+        val profile = household.childProfiles.firstOrNull { it.id == childProfileId }
+            ?: studentProfile
+        return ProfileArchiveWriter.fileName(profile)
+    }
+
+    fun exportChildProfileArchive(
+        childProfileId: String,
+        uriText: String,
+    ) {
+        if (!requireAdultAccess()) return
+        val profile = household.childProfiles.firstOrNull { it.id == childProfileId }
+        if (profile == null) {
+            setMessage("That student profile is no longer available.")
+            return
+        }
+        val uri = uriText.trim()
+        if (!uri.startsWith("content://")) {
+            setMessage("Choose a destination with the Android file picker.")
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val snapshot = store.load(profile)
+                    val recordingFiles = snapshot.events
+                        .mapNotNull(PracticeEvent::videoPath)
+                        .distinct()
+                        .mapNotNull(::managedRecordingFile)
+                    val output = appContext.contentResolver.openOutputStream(uri.toUri(), "wt")
+                        ?: error("The selected archive file could not be opened.")
+                    output.use {
+                        ProfileArchiveWriter.write(
+                            output = it,
+                            profile = profile,
+                            snapshot = snapshot,
+                            recordingFiles = recordingFiles,
+                            exportedAtMillis = wallClock(),
+                        )
+                    }
+                }
+            }.onSuccess { result ->
+                setMessage(
+                    buildString {
+                        append("Exported ${profile.name}’s student data")
+                        if (result.recordingCount > 0) {
+                            append(" with ${result.recordingCount} recording")
+                            if (result.recordingCount != 1) append('s')
+                        }
+                        append('.')
+                        if (result.skippedRecordingCount > 0) {
+                            append(" ${result.skippedRecordingCount} unavailable recording")
+                            if (result.skippedRecordingCount != 1) append('s')
+                            append(" could not be included.")
+                        }
+                    },
+                )
+            }.onFailure { error ->
+                setMessage(error.message ?: "The student data archive could not be created.")
+            }
+        }
+    }
+
+    fun deleteChildProfile(childProfileId: String): Boolean {
+        if (!requireAdultAccess()) return false
+        val profile = household.childProfiles.firstOrNull { it.id == childProfileId }
+        if (profile == null) {
+            setMessage("That student profile is no longer available.")
+            return false
+        }
+        val error = when {
+            household.childProfiles.size <= 1 ->
+                "Add another child profile before deleting the last profile."
+            uiState.activeTaskId != null && profile.id == studentProfile.id ->
+                "Finish the current practice mission before deleting this profile."
+            uiState.recordingActive && profile.id == studentProfile.id ->
+                "Stop the current recording before deleting this profile."
+            localFileState.status == LocalFileStatus.SAVING &&
+                profile.id == studentProfile.id ->
+                "Wait for the local file save before deleting this profile."
+            else -> null
+        }
+        if (error != null) {
+            setMessage(error)
+            return false
+        }
+
+        val snapshot = store.load(profile)
+        val otherProfiles = household.childProfiles.filterNot { it.id == profile.id }
+        val pathsReferencedElsewhere = store.referencedRecordingPaths(otherProfiles)
+        var failedRecordingDeletes = 0
+        snapshot.events
+            .mapNotNull(PracticeEvent::videoPath)
+            .distinct()
+            .filterNot(pathsReferencedElsewhere::contains)
+            .forEach { path ->
+                val file = managedRecordingFile(path) ?: return@forEach
+                val deleted = runCatching {
+                    !file.exists() || file.delete() || !file.exists()
+                }.getOrDefault(false)
+                if (!deleted) failedRecordingDeletes += 1
+            }
+        releaseWorkbookPermissionIfUnused(profile, otherProfiles)
+
+        val deletingActiveProfile = profile.id == studentProfile.id
+        store.delete(profile)
+        household = familyStore.removeChildProfile(profile.id)
+        val selected = if (deletingActiveProfile) {
+            selectChildProfile(household.activeChildProfileId)
+        } else {
+            true
+        }
+        if (!selected) return false
+        setMessage(
+            buildString {
+                append("Deleted ${profile.name}’s app profile, practice history, and managed recordings.")
+                if (!profile.excelWorkbookName.isNullOrBlank()) {
+                    append(" The external Excel file was left in place.")
+                }
+                if (failedRecordingDeletes > 0) {
+                    append(" $failedRecordingDeletes recording file")
+                    if (failedRecordingDeletes != 1) append('s')
+                    append(" could not be removed.")
+                }
+            },
+        )
         return true
     }
 
@@ -131,11 +421,13 @@ class PracticeViewModel(
         PracticeWorkbookTemplate.fileName(studentProfile)
 
     fun createLocalWorkbook(uriText: String) {
+        if (!requireAdultAccess()) return
         val uri = validWorkbookUri(uriText) ?: return
         writeLocalWorkbook(uri, LocalWorkbookWriteMode.CREATE)
     }
 
     fun connectExistingLocalWorkbook(uriText: String) {
+        if (!requireAdultAccess()) return
         val uri = validWorkbookUri(uriText) ?: return
         if (localFileState.status == LocalFileStatus.SAVING) return
         autoSaveJob?.cancel()
@@ -150,7 +442,7 @@ class PracticeViewModel(
                 val merge = mergeWorkbookAssignments(result.assignments)
                 val nextSnapshot = uiState.snapshot.copy(tasks = merge.tasks)
                 if (nextSnapshot != uiState.snapshot) {
-                    store.save(nextSnapshot)
+                    store.save(studentProfile, nextSnapshot)
                     uiState = uiState.copy(snapshot = nextSnapshot)
                 }
                 val file = localWorkbookStore.describe(uri)
@@ -160,14 +452,14 @@ class PracticeViewModel(
                         studentProfile,
                     ),
                 )
-                store.saveProfile(updated)
+                household = familyStore.saveChildProfile(updated)
                 studentProfile = updated
-                localRevision = store.bumpLocalRevision()
+                localRevision = familyStore.bumpLocalRevision(updated.id)
                 localFileState = LocalFileUiState(
                     status = LocalFileStatus.UNSAVED,
                     fileName = updated.excelWorkbookName,
                     fileUri = uri,
-                    lastSavedAtMillis = store.loadLastFileSaveAt(),
+                    lastSavedAtMillis = familyStore.loadLastFileSaveAt(updated.id),
                     hasUnsavedChanges = true,
                     detail = "The combined assignment plan is ready to save to this local file.",
                 )
@@ -206,6 +498,7 @@ class PracticeViewModel(
     }
 
     fun saveLocalWorkbook() {
+        if (!requireAdultAccess()) return
         val uri = studentProfile.excelWorkbookUri
         if (uri.isNullOrBlank()) {
             setMessage("Create or choose a local Excel file first.")
@@ -215,6 +508,7 @@ class PracticeViewModel(
     }
 
     fun loadAssignmentsFromLocalFile() {
+        if (!requireAdultAccess()) return
         val uri = studentProfile.excelWorkbookUri
         if (uri.isNullOrBlank()) {
             setMessage("Create or choose a local Excel file first.")
@@ -302,7 +596,7 @@ class PracticeViewModel(
                 mode == LocalWorkbookWriteMode.CREATE ->
                     "Creating and verifying the local Excel file and all column headings…"
                 mode == LocalWorkbookWriteMode.CONNECT_EXISTING ->
-                    "Checking the selected Practice Partner file…"
+                    "Checking the selected LK Practice file…"
                 else -> "Saving assignments and the current snapshot to the local Excel file…"
             },
         )
@@ -320,9 +614,9 @@ class PracticeViewModel(
                     excelWorkbookUri = workbook.uri,
                     excelWorkbookName = workbook.name,
                 )
-                store.saveProfile(updated)
-                store.saveLastFileSaveAt(workbook.savedAtMillis)
-                store.saveLastFileSaveRevision(requestedRevision)
+                household = familyStore.saveChildProfile(updated)
+                familyStore.saveLastFileSaveAt(updated.id, workbook.savedAtMillis)
+                familyStore.saveLastFileSaveRevision(updated.id, requestedRevision)
                 lastFileSaveRevision = requestedRevision
                 studentProfile = updated
                 val changedDuringSave = localRevision > requestedRevision
@@ -346,9 +640,9 @@ class PracticeViewModel(
                     setMessage(
                         successMessage ?: when (mode) {
                             LocalWorkbookWriteMode.CREATE ->
-                                "Created and verified the local Practice Partner Excel file."
+                                "Created and verified the local LK Practice Excel file."
                             LocalWorkbookWriteMode.CONNECT_EXISTING ->
-                                "Selected the local Practice Partner Excel file."
+                                "Selected the local LK Practice Excel file."
                             LocalWorkbookWriteMode.SAVE ->
                                 "Saved assignments to the local Excel file."
                         },
@@ -360,7 +654,7 @@ class PracticeViewModel(
                     status = LocalFileStatus.ERROR,
                     fileName = studentProfile.excelWorkbookName,
                     fileUri = studentProfile.excelWorkbookUri,
-                    lastSavedAtMillis = store.loadLastFileSaveAt(),
+                    lastSavedAtMillis = familyStore.loadLastFileSaveAt(studentProfile.id),
                     hasUnsavedChanges = localRevision > lastFileSaveRevision,
                     detail = error.message
                         ?: "The local Excel file is configured, but the save did not finish.",
@@ -381,15 +675,40 @@ class PracticeViewModel(
         if (today == uiState.currentDate) return
         val wasShowingToday = uiState.summaryDate == uiState.currentDate
         pauseTimer(logEvent = false)
+        uiState.activeSessionId?.let { sessionId ->
+            updateSnapshot { snapshot ->
+                snapshot.copy(
+                    sessions = snapshot.sessions.map { session ->
+                        if (
+                            session.id == sessionId &&
+                            session.status == PracticeSessionStatus.ACTIVE
+                        ) {
+                            session.copy(
+                                endedAtMillis = wallClock()
+                                    .coerceAtLeast(session.startedAtMillis),
+                                status = PracticeSessionStatus.INTERRUPTED,
+                            )
+                        } else {
+                            session
+                        }
+                    },
+                )
+            }
+        }
         val elapsed = uiState.snapshot.progressByDate[today]?.elapsedSeconds ?: 0L
         timerBaseSeconds = elapsed
+        sessionTimerBaseSeconds = 0L
         uiState = uiState.copy(
             currentDate = today,
             summaryDate = if (wasShowingToday) today else uiState.summaryDate,
             activeTaskId = null,
+            activeSessionId = null,
             selectedTaskId = null,
             elapsedSeconds = elapsed,
+            activeSessionElapsedSeconds = 0L,
             running = false,
+            recordingActive = false,
+            pendingReflectionSessionId = null,
         )
     }
 
@@ -404,7 +723,12 @@ class PracticeViewModel(
         coachNote: String,
         whyImportant: String,
         sheetMusicUri: String?,
+        assignmentType: AssignmentType,
+        goalType: PracticeGoalType,
+        targetMinutesText: String,
+        enabledModes: Set<PracticeMode>,
     ): Boolean {
+        if (!requireAdultAccess()) return false
         val assignedDate = assignedDateText.trim()
         val title = titleText.trim()
         val source = sourceText.trim()
@@ -412,6 +736,7 @@ class PracticeViewModel(
         val start = startText.trim().ifBlank { "0" }.toIntOrNull()
         val end = endText.trim().takeIf(String::isNotBlank)?.toIntOrNull()
         val repetitions = repetitionsText.trim().toIntOrNull()
+        val targetMinutes = targetMinutesText.trim().toIntOrNull()
         val parsedDate = runCatching { java.time.LocalDate.parse(assignedDate) }.getOrNull()
         val existingTask = taskId?.let(::taskFor)
         val error = when {
@@ -424,7 +749,16 @@ class PracticeViewModel(
             start == null || start < 0 -> "Start time must be zero or greater."
             endText.isNotBlank() && end == null -> "End time must be a whole number of seconds."
             end != null && end <= start -> "End time must be after start time."
-            repetitions == null || repetitions !in 1..20 -> "Repetitions must be between 1 and 20."
+            goalType == PracticeGoalType.REPETITIONS &&
+                (repetitions == null || repetitions !in 1..20) ->
+                "Repetitions must be between 1 and 20."
+            goalType == PracticeGoalType.TIME &&
+                (targetMinutes == null || targetMinutes !in 1..60) ->
+                "Practice time must be between 1 and 60 minutes."
+            enabledModes.isEmpty() -> "Choose at least one practice step."
+            sourceType == SourceType.NONE &&
+                enabledModes != setOf(PracticeMode.PLAY_YOURSELF) ->
+                "Without a reference video, use Play Yourself as the practice step."
             coachNote.length > 2_000 -> "Keep the coach focus under 2,000 characters."
             whyImportant.length > 2_000 -> "Keep why this matters under 2,000 characters."
             sheetMusicUri?.startsWith("content://") == true &&
@@ -442,19 +776,38 @@ class PracticeViewModel(
             return false
         }
 
-        val task = PracticeTask(
+        var task = PracticeTask(
             id = existingTask?.id ?: UUID.randomUUID().toString(),
+            childProfileId = studentProfile.id,
+            instrument = studentProfile.instrument,
             assignedDate = assignedDate,
             title = title,
             source = source,
             sourceType = sourceType!!,
             startSeconds = start!!,
             endSeconds = end,
-            repetitions = repetitions!!,
+            repetitions = if (goalType == PracticeGoalType.REPETITIONS) {
+                repetitions!!
+            } else {
+                1
+            },
             coachNote = coachNote.trim(),
             whyImportant = whyImportant.trim(),
             sheetMusicUri = sheetMusicUri?.takeIf(String::isNotBlank),
+            assignmentType = assignmentType,
+            goalType = goalType,
+            targetSeconds = if (goalType == PracticeGoalType.TIME) {
+                targetMinutes!! * 60
+            } else {
+                0
+            },
+            enabledModes = enabledModes,
+            revision = existingTask?.revision ?: 1,
+            archivedAtMillis = existingTask?.archivedAtMillis,
         )
+        if (existingTask != null && task != existingTask) {
+            task = task.copy(revision = existingTask.revision + 1)
+        }
         if (isDuplicateTask(task, excludingTaskId = existingTask?.id)) {
             setMessage("This assignment is already on ${friendlyDate(assignedDate)}.")
             return false
@@ -483,6 +836,10 @@ class PracticeViewModel(
         coachNote: String,
         whyImportant: String,
         sheetMusicUri: String?,
+        assignmentType: AssignmentType = AssignmentType.TECHNIQUE,
+        goalType: PracticeGoalType = PracticeGoalType.REPETITIONS,
+        targetMinutesText: String = "10",
+        enabledModes: Set<PracticeMode> = setOf(PracticeMode.PLAY_YOURSELF),
     ): Boolean = saveAssignment(
         taskId = null,
         assignedDateText = uiState.currentDate,
@@ -494,10 +851,20 @@ class PracticeViewModel(
         coachNote = coachNote,
         whyImportant = whyImportant,
         sheetMusicUri = sheetMusicUri,
+        assignmentType = assignmentType,
+        goalType = goalType,
+        targetMinutesText = targetMinutesText,
+        enabledModes = enabledModes,
     )
 
     fun importCsv(text: String, defaultDate: String = uiState.currentDate) {
-        val result = CsvCodec.decode(text, defaultDate)
+        if (!requireAdultAccess()) return
+        val result = CsvCodec.decode(
+            text = text,
+            defaultDate = defaultDate,
+            childProfileId = studentProfile.id,
+            instrument = studentProfile.instrument,
+        )
         val merged = uiState.snapshot.tasks.toMutableList()
         val errors = result.errors.toMutableList()
         val seenImportedIds = mutableSetOf<String>()
@@ -558,14 +925,64 @@ class PracticeViewModel(
 
     fun exportTodayCsv(): String = CsvCodec.encode(uiState.todayTasks)
 
-    fun exportCsvForDate(date: String): String = CsvCodec.encode(uiState.tasksForDate(date))
+    fun exportCsvForDate(date: String): String = CsvCodec.encode(
+        uiState.snapshot.tasks.filter { it.assignedDate == date },
+    )
+
+    fun archiveTask(task: PracticeTask) {
+        if (!requireAdultAccess()) return
+        if (task.archivedAtMillis != null) return
+        if (task.id == uiState.activeTaskId) {
+            setMessage("Finish the current practice mission before archiving it.")
+            return
+        }
+        updateSnapshot(saveWorkbook = true) { snapshot ->
+            snapshot.copy(
+                tasks = snapshot.tasks.map {
+                    if (it.id == task.id) {
+                        it.copy(
+                            archivedAtMillis = wallClock(),
+                            revision = it.revision + 1,
+                        )
+                    } else {
+                        it
+                    }
+                },
+            )
+        }
+        setMessage("Archived “${task.title}”. Its practice history was kept.")
+    }
+
+    fun restoreTask(task: PracticeTask) {
+        if (!requireAdultAccess()) return
+        if (task.archivedAtMillis == null) return
+        updateSnapshot(saveWorkbook = true) { snapshot ->
+            snapshot.copy(
+                tasks = snapshot.tasks.map {
+                    if (it.id == task.id) {
+                        it.copy(
+                            archivedAtMillis = null,
+                            revision = it.revision + 1,
+                        )
+                    } else {
+                        it
+                    }
+                },
+            )
+        }
+        setMessage("Restored “${task.title}” to the practice plan.")
+    }
 
     fun removeTask(task: PracticeTask) {
+        if (!requireAdultAccess()) return
         if (uiState.recordingActive && task.id == uiState.activeTaskId) {
             setMessage("Stop the recording before removing this assignment.")
             return
         }
-        if (task.id == uiState.activeTaskId) finishPractice()
+        if (task.id == uiState.activeTaskId) {
+            setMessage("Finish the current practice mission before removing this assignment.")
+            return
+        }
         updateSnapshot(saveWorkbook = true) { snapshot ->
             snapshot.copy(
                 tasks = snapshot.tasks.filterNot { it.id == task.id },
@@ -584,8 +1001,17 @@ class PracticeViewModel(
         refreshDate()
         if (uiState.running) return
         timerBaseSeconds = uiState.todayProgress.elapsedSeconds
+        sessionTimerBaseSeconds = uiState.activeSessionId
+            ?.let { sessionId ->
+                uiState.snapshot.sessions.firstOrNull { it.id == sessionId }?.elapsedSeconds
+            }
+            ?: uiState.activeSessionElapsedSeconds
         timerStartedAtMillis = elapsedRealtime()
-        uiState = uiState.copy(running = true, elapsedSeconds = timerBaseSeconds)
+        uiState = uiState.copy(
+            running = true,
+            elapsedSeconds = timerBaseSeconds,
+            activeSessionElapsedSeconds = sessionTimerBaseSeconds,
+        )
         logEvent(taskFor(uiState.selectedTaskId), eventMessage)
         startTicker()
     }
@@ -593,17 +1019,38 @@ class PracticeViewModel(
     fun pauseTimer(logEvent: Boolean = true) {
         if (!uiState.running) return
         val elapsed = calculatedElapsedSeconds()
+        val sessionElapsed = calculatedSessionElapsedSeconds()
         timerJob?.cancel()
         timerJob = null
         timerStartedAtMillis = null
         timerBaseSeconds = elapsed
-        updateDailyProgress { it.copy(elapsedSeconds = elapsed) }
-        uiState = uiState.copy(running = false, elapsedSeconds = elapsed)
+        sessionTimerBaseSeconds = sessionElapsed
+        persistTimerProgress(elapsed, sessionElapsed)
+        uiState = uiState.copy(
+            running = false,
+            elapsedSeconds = elapsed,
+            activeSessionElapsedSeconds = sessionElapsed,
+        )
         if (logEvent) logEvent(taskFor(uiState.selectedTaskId), "Practice timer paused")
     }
 
     fun startPractice(task: PracticeTask) {
         refreshDate()
+        if (uiState.activeTaskId != null) {
+            setMessage("Finish the current practice mission before starting another one.")
+            return
+        }
+        if (task.archivedAtMillis != null) {
+            setMessage("This assignment is archived. A grown-up can restore it in Parent Space.")
+            return
+        }
+        if (
+            task.childProfileId.isNotBlank() &&
+            task.childProfileId != studentProfile.id
+        ) {
+            setMessage("This assignment belongs to another student profile.")
+            return
+        }
         if (task.assignedDate != uiState.currentDate) {
             setMessage("This assignment belongs to ${friendlyDate(task.assignedDate)}, not today.")
             return
@@ -617,10 +1064,40 @@ class PracticeViewModel(
             )
             return
         }
+        val resolvedMode = when {
+            task.sourceType == SourceType.NONE -> PracticeMode.PLAY_YOURSELF
+            uiState.mode in task.enabledModes -> uiState.mode
+            else -> task.enabledModes.firstOrNull() ?: PracticeMode.PLAY_YOURSELF
+        }
+        val session = PracticeSession(
+            id = UUID.randomUUID().toString(),
+            childProfileId = studentProfile.id,
+            assignmentId = task.id,
+            assignmentTitle = task.title,
+            instrument = task.instrument.ifBlank { studentProfile.instrument },
+            date = uiState.currentDate,
+            mode = resolvedMode,
+            startedAtMillis = wallClock(),
+            repetitionsCompleted = 0,
+            assignmentRevision = task.revision,
+            assignmentType = task.assignmentType,
+            goalType = task.goalType,
+            targetRepetitions = task.repetitions,
+            targetSeconds = task.targetSeconds,
+            elapsedSeconds = 0L,
+        )
+        sessionTimerBaseSeconds = 0L
         uiState = uiState.copy(
             selectedTaskId = task.id,
             activeTaskId = task.id,
+            activeSessionId = session.id,
+            mode = resolvedMode,
+            activeSessionElapsedSeconds = 0L,
+            pendingReflectionSessionId = null,
         )
+        updateSnapshot { snapshot ->
+            snapshot.copy(sessions = (snapshot.sessions + session).takeLast(MAX_SESSIONS))
+        }
         if (!uiState.running) startTimer()
         logEvent(task, "${uiState.mode.label} started")
     }
@@ -641,9 +1118,39 @@ class PracticeViewModel(
             return false
         }
         val task = taskFor(uiState.activeTaskId)
+        val sessionId = uiState.activeSessionId
         pauseTimer(logEvent = false)
+        val goalMet = task?.let { uiState.goalMet(it, uiState.currentDate) } == true
+        if (sessionId != null) {
+            updateSnapshot { snapshot ->
+                snapshot.copy(
+                    sessions = snapshot.sessions.map { session ->
+                        if (session.id == sessionId) {
+                            session.copy(
+                                endedAtMillis = wallClock()
+                                    .coerceAtLeast(session.startedAtMillis),
+                                status = if (goalMet) {
+                                    PracticeSessionStatus.COMPLETED
+                                } else {
+                                    PracticeSessionStatus.ENDED
+                                },
+                            )
+                        } else {
+                            session
+                        }
+                    },
+                )
+            }
+        }
         if (task != null) logEvent(task, "Practice session finished")
-        uiState = uiState.copy(activeTaskId = null, recordingActive = false)
+        uiState = uiState.copy(
+            activeTaskId = null,
+            activeSessionId = null,
+            activeSessionElapsedSeconds = 0L,
+            recordingActive = false,
+            pendingReflectionSessionId = sessionId,
+        )
+        sessionTimerBaseSeconds = 0L
         return true
     }
 
@@ -652,6 +1159,10 @@ class PracticeViewModel(
     }
 
     fun recordRepetition(task: PracticeTask) {
+        if (task.goalType != PracticeGoalType.REPETITIONS) {
+            setMessage("This mission uses a practice-time goal.")
+            return
+        }
         val before = uiState.todayProgress.repetitionsFor(task.id)
         if (before >= task.repetitions) {
             setMessage("All ${task.repetitions} repetitions are already complete.")
@@ -659,12 +1170,57 @@ class PracticeViewModel(
         }
         updateDailyProgress { it.recordRepetition(task) }
         val after = uiState.todayProgress.repetitionsFor(task.id)
+        uiState.activeSessionId?.let { sessionId ->
+            updateSnapshot { snapshot ->
+                snapshot.copy(
+                    sessions = snapshot.sessions.map { session ->
+                        if (session.id == sessionId) {
+                            session.copy(
+                                repetitionsCompleted =
+                                    session.repetitionsCompleted + (after - before),
+                            )
+                        } else {
+                            session
+                        }
+                    },
+                )
+            }
+        }
         logEvent(task, "Repetition $after of ${task.repetitions} completed")
         setMessage(
             if (after >= task.repetitions) {
                 "Assignment complete: ${task.repetitions} repetitions."
             } else {
                 "Recorded repetition $after of ${task.repetitions}."
+            },
+        )
+    }
+
+    fun submitReflection(reflection: PracticeReflection?) {
+        val sessionId = uiState.pendingReflectionSessionId ?: return
+        val session = uiState.snapshot.sessions.firstOrNull { it.id == sessionId }
+        updateSnapshot { snapshot ->
+            snapshot.copy(
+                sessions = snapshot.sessions.map {
+                    if (it.id == sessionId) it.copy(reflection = reflection) else it
+                },
+            )
+        }
+        if (reflection != null) {
+            logEvent(
+                task = taskFor(session?.assignmentId),
+                message = "Reflection: ${reflection.summaryLabel}",
+                sessionIdOverride = sessionId,
+            )
+        }
+        uiState = uiState.copy(
+            pendingReflectionSessionId = null,
+            message = when (reflection) {
+                PracticeReflection.PROUD -> "Nice work noticing what went well."
+                PracticeReflection.MAKING_PROGRESS -> "Small steps count. Keep building."
+                PracticeReflection.NEED_HELP ->
+                    "Good noticing. A grown-up can review this with you."
+                null -> "Practice saved."
             },
         )
     }
@@ -683,13 +1239,14 @@ class PracticeViewModel(
             videoPath = recording.path,
             videoFileName = recording.fileName,
         )
-        setMessage("Saved ${recording.fileName}. Share it only when ready.")
+        setMessage("Saved ${recording.fileName}. A grown-up can review it in Practice Summary.")
     }
 
     fun deleteRecording(videoPath: String): Boolean {
+        if (!requireAdultAccess()) return false
         val recordingFile = managedRecordingFile(videoPath)
         if (recordingFile == null) {
-            setMessage("This recording path is outside Practice Partner storage and was not deleted.")
+            setMessage("This recording path is outside LK Practice storage and was not deleted.")
             return false
         }
         val existed = recordingFile.exists()
@@ -709,6 +1266,9 @@ class PracticeViewModel(
 
     fun pauseForBackground() {
         pauseTimer(logEvent = false)
+        if (!adultExternalActionInProgress) {
+            lockAdultSpace()
+        }
     }
 
     override fun onCleared() {
@@ -721,9 +1281,13 @@ class PracticeViewModel(
         timerJob = viewModelScope.launch {
             while (isActive && uiState.running) {
                 val elapsed = calculatedElapsedSeconds()
-                uiState = uiState.copy(elapsedSeconds = elapsed)
+                val sessionElapsed = calculatedSessionElapsedSeconds()
+                uiState = uiState.copy(
+                    elapsedSeconds = elapsed,
+                    activeSessionElapsedSeconds = sessionElapsed,
+                )
                 if (elapsed % 5L == 0L) {
-                    updateDailyProgress { it.copy(elapsedSeconds = elapsed) }
+                    persistTimerProgress(elapsed, sessionElapsed)
                 }
                 delay(1_000)
             }
@@ -735,10 +1299,62 @@ class PracticeViewModel(
         return timerBaseSeconds + ((elapsedRealtime() - startedAt).coerceAtLeast(0L) / 1_000L)
     }
 
+    private fun calculatedSessionElapsedSeconds(): Long {
+        val startedAt = timerStartedAtMillis ?: return sessionTimerBaseSeconds
+        return sessionTimerBaseSeconds +
+            ((elapsedRealtime() - startedAt).coerceAtLeast(0L) / 1_000L)
+    }
+
+    private fun persistTimerProgress(
+        elapsedSeconds: Long,
+        sessionElapsedSeconds: Long,
+    ) {
+        val date = uiState.currentDate
+        val task = taskFor(uiState.activeTaskId)
+        val sessionId = uiState.activeSessionId
+        updateSnapshot { snapshot ->
+            val updatedSessions = if (sessionId == null) {
+                snapshot.sessions
+            } else {
+                snapshot.sessions.map { session ->
+                    if (session.id == sessionId) {
+                        session.copy(elapsedSeconds = sessionElapsedSeconds)
+                    } else {
+                        session
+                    }
+                }
+            }
+            var progress = (
+                snapshot.progressByDate[date] ?: DailyProgress(
+                    date = date,
+                    childProfileId = studentProfile.id,
+                )
+                ).copy(elapsedSeconds = elapsedSeconds)
+            if (
+                task?.goalType == PracticeGoalType.TIME &&
+                task.targetSeconds > 0 &&
+                updatedSessions
+                    .filter { it.assignmentId == task.id && it.date == date }
+                    .sumOf(PracticeSession::elapsedSeconds) >= task.targetSeconds
+            ) {
+                progress = progress.copy(
+                    completedTaskIds = progress.completedTaskIds + task.id,
+                )
+            }
+            snapshot.copy(
+                progressByDate = snapshot.progressByDate + (date to progress),
+                sessions = updatedSessions,
+            )
+        }
+    }
+
     private fun updateDailyProgress(transform: (DailyProgress) -> DailyProgress) {
         val date = uiState.currentDate
         updateSnapshot { snapshot ->
-            val current = snapshot.progressByDate[date] ?: DailyProgress(date)
+            val current = snapshot.progressByDate[date] ?: DailyProgress(
+                date = date,
+                childProfileId = studentProfile.id,
+            )
             snapshot.copy(progressByDate = snapshot.progressByDate + (date to transform(current)))
         }
     }
@@ -747,9 +1363,9 @@ class PracticeViewModel(
         saveWorkbook: Boolean = false,
         transform: (PracticeSnapshot) -> PracticeSnapshot,
     ) {
-        val next = transform(uiState.snapshot)
+        val next = transform(uiState.snapshot).scopedTo(studentProfile)
         if (next == uiState.snapshot) return
-        store.save(next)
+        store.save(studentProfile, next)
         uiState = uiState.copy(snapshot = next)
         if (saveWorkbook) recordLocalMutation()
     }
@@ -762,6 +1378,7 @@ class PracticeViewModel(
         videoUri: String? = null,
         videoPath: String? = null,
         videoFileName: String? = null,
+        sessionIdOverride: String? = null,
     ) {
         val now = wallClock()
         val event = PracticeEvent(
@@ -774,6 +1391,8 @@ class PracticeViewModel(
             videoUri = videoUri,
             videoPath = videoPath,
             videoFileName = videoFileName,
+            childProfileId = studentProfile.id,
+            sessionId = sessionIdOverride ?: uiState.activeSessionId,
         )
         var droppedRecordingPaths = emptySet<String>()
         updateSnapshot { snapshot ->
@@ -791,7 +1410,7 @@ class PracticeViewModel(
     }
 
     private fun recordLocalMutation() {
-        localRevision = store.bumpLocalRevision()
+        localRevision = familyStore.bumpLocalRevision(studentProfile.id)
         val uri = studentProfile.excelWorkbookUri
         if (uri.isNullOrBlank()) return
         localFileState = localFileState.copy(
@@ -824,9 +1443,31 @@ class PracticeViewModel(
         }.getOrDefault(false)
     }
 
+    private fun requireAdultAccess(): Boolean {
+        if (adultUnlocked) return true
+        setMessage("Open Parent Space and enter the parent PIN first.")
+        return false
+    }
+
+    private fun closeInterruptedSessions() {
+        val interrupted = interruptOpenSessions(uiState.snapshot, wallClock())
+        if (interrupted == uiState.snapshot) return
+        store.save(studentProfile, interrupted)
+        uiState = uiState.copy(
+            snapshot = interrupted,
+            message = listOf(
+                uiState.message,
+                "A practice session interrupted by the previous app exit was closed safely.",
+            ).filter(String::isNotBlank).joinToString(" "),
+        )
+    }
+
     private fun hasProgressForTask(taskId: String): Boolean =
         uiState.snapshot.progressByDate.values.any { progress ->
             taskId in progress.completedTaskIds || progress.repetitionsFor(taskId) > 0
+        } || uiState.snapshot.sessions.any { session ->
+            session.assignmentId == taskId &&
+                (session.elapsedSeconds > 0L || session.repetitionsCompleted > 0)
         }
 
     private fun isDuplicateTask(
@@ -848,6 +1489,13 @@ class PracticeViewModel(
         var loadedCount = 0
         var generatedIdCount = 0
         assignments.forEachIndexed { index, assignment ->
+            if (
+                assignment.childProfileId.isNotBlank() &&
+                assignment.childProfileId != studentProfile.id
+            ) {
+                errors += "Excel row ${index + 2}: this assignment belongs to another student."
+                return@forEachIndexed
+            }
             val existingIndex = merged.indexOfFirst { it.id == assignment.id }
             val existing = merged.getOrNull(existingIndex)
             val source = when {
@@ -870,8 +1518,10 @@ class PracticeViewModel(
                 errors +=
                     "Excel row ${index + 2}: local sheet music needs reattachment on this device."
             }
-            val candidate = PracticeTask(
+            var candidate = PracticeTask(
                 id = assignment.id,
+                childProfileId = studentProfile.id,
+                instrument = assignment.instrument.ifBlank { studentProfile.instrument },
                 assignedDate = assignment.assignedDate,
                 title = assignment.title,
                 source = source,
@@ -882,7 +1532,23 @@ class PracticeViewModel(
                 coachNote = assignment.coachNote,
                 whyImportant = assignment.whyImportant,
                 sheetMusicUri = sheetMusic,
+                assignmentType = assignment.assignmentType,
+                goalType = assignment.goalType,
+                targetSeconds = assignment.targetSeconds,
+                enabledModes = assignment.enabledModes,
+                revision = assignment.revision,
+                archivedAtMillis = assignment.archivedAtMillis,
             )
+            if (existing != null) {
+                val candidateAtCurrentRevision = candidate.copy(revision = existing.revision)
+                candidate = if (candidateAtCurrentRevision == existing) {
+                    existing
+                } else {
+                    candidate.copy(
+                        revision = maxOf(existing.revision + 1, assignment.revision),
+                    )
+                }
+            }
             val duplicate = merged.any {
                 it.id != candidate.id && assignmentKey(it) == assignmentKey(candidate)
             }
@@ -929,6 +1595,21 @@ class PracticeViewModel(
         }
     }
 
+    private fun releaseWorkbookPermissionIfUnused(
+        deletedProfile: ChildProfile,
+        remainingProfiles: List<ChildProfile>,
+    ) {
+        val uriText = deletedProfile.excelWorkbookUri?.takeIf(String::isNotBlank) ?: return
+        if (remainingProfiles.any { it.excelWorkbookUri == uriText }) return
+        runCatching {
+            appContext.contentResolver.releasePersistableUriPermission(
+                uriText.toUri(),
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
+    }
+
     private fun deleteManagedRecordingFileOnly(path: String) {
         managedRecordingFile(path)?.let { file ->
             runCatching {
@@ -938,7 +1619,7 @@ class PracticeViewModel(
     }
 
     private fun cleanupOrphanedRecordings() {
-        val referenced = uiState.snapshot.events.mapNotNull(PracticeEvent::videoPath).toSet()
+        val referenced = store.referencedRecordingPaths(household.childProfiles)
         managedRecordingDirectories().forEach { directory ->
             directory.listFiles()
                 .orEmpty()
@@ -955,6 +1636,7 @@ class PracticeViewModel(
                 PracticeViewModel(
                     appContext = context.applicationContext,
                     store = PracticeStore(context.applicationContext),
+                    familyStore = FamilyStore(context.applicationContext),
                     localWorkbookStore = LocalWorkbookStore(context.applicationContext),
                 ) as T
         }
@@ -970,6 +1652,31 @@ private enum class LocalWorkbookWriteMode {
 private fun friendlyDate(date: String): String = runCatching {
     java.time.LocalDate.parse(date).format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
 }.getOrDefault(date)
+
+private fun profileValidationError(name: String, instrument: String): String? = when {
+    name.isBlank() -> "Add the student’s name."
+    name.length > 80 -> "Keep the student’s name under 80 characters."
+    instrument.isBlank() -> "Add an instrument."
+    instrument.length > 80 -> "Keep the instrument under 80 characters."
+    else -> null
+}
+
+private fun interruptOpenSessions(
+    snapshot: PracticeSnapshot,
+    atMillis: Long,
+): PracticeSnapshot {
+    val interrupted = snapshot.sessions.map { session ->
+        if (session.status == PracticeSessionStatus.ACTIVE) {
+            session.copy(
+                endedAtMillis = atMillis.coerceAtLeast(session.startedAtMillis),
+                status = PracticeSessionStatus.INTERRUPTED,
+            )
+        } else {
+            session
+        }
+    }
+    return if (interrupted == snapshot.sessions) snapshot else snapshot.copy(sessions = interrupted)
+}
 
 private fun initialLocalFileState(
     profile: StudentProfile,
@@ -1017,6 +1724,7 @@ private fun assignmentKey(task: PracticeTask): AssignmentKey =
         date = task.assignedDate,
         title = task.title.trim().lowercase(),
         source = when (task.sourceType) {
+            SourceType.NONE -> ""
             SourceType.YOUTUBE -> youtubeVideoId(task.source).orEmpty()
             SourceType.LOCAL -> task.source.trim()
         },
@@ -1040,4 +1748,5 @@ private data class WorkbookAssignmentMerge(
 )
 
 private const val MAX_EVENTS = 500
+private const val MAX_SESSIONS = 500
 private const val AUTO_SAVE_DELAY_MILLIS = 15_000L

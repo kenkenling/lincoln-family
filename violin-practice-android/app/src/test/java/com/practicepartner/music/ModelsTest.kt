@@ -73,4 +73,241 @@ class ModelsTest {
         assertFalse(task.id in reopened.completedTaskIds)
         assertEquals(3, reopened.repetitionsFor(task.id))
     }
+
+    @Test
+    fun blankReferenceCreatesAValidNoReferenceAssignment() {
+        assertEquals(SourceType.NONE, sourceTypeFor(""))
+        assertEquals(SourceType.NONE, sourceTypeFor("   "))
+    }
+
+    @Test
+    fun snapshotScopingMigratesLegacyRowsAndRemovesAnotherChildsData() {
+        val current = ChildProfile(
+            id = "current-child",
+            name = "Current",
+            instrument = "Piano",
+        )
+        val legacyTask = PracticeTask(
+            id = "legacy-task",
+            assignedDate = "2026-10-31",
+            title = "C major scale",
+            source = "",
+            sourceType = SourceType.NONE,
+            startSeconds = 0,
+            endSeconds = null,
+            repetitions = 3,
+        )
+        val currentTask = legacyTask.copy(
+            id = "current-task",
+            title = "Arpeggio",
+            childProfileId = current.id,
+            instrument = current.instrument,
+        )
+        val otherTask = legacyTask.copy(
+            id = "other-task",
+            title = "Other child",
+            childProfileId = "other-child",
+            instrument = "Violin",
+        )
+        val legacySession = PracticeSession(
+            id = "legacy-session",
+            childProfileId = "",
+            assignmentId = legacyTask.id,
+            assignmentTitle = legacyTask.title,
+            instrument = "",
+            date = "2026-10-31",
+            mode = PracticeMode.PLAY_YOURSELF,
+            startedAtMillis = 10L,
+        )
+        val otherSession = legacySession.copy(
+            id = "other-session",
+            childProfileId = "other-child",
+            assignmentId = otherTask.id,
+        )
+        val scoped = PracticeSnapshot(
+            tasks = listOf(legacyTask, currentTask, otherTask),
+            progressByDate = mapOf(
+                "2026-10-31" to DailyProgress(
+                    date = "2026-10-31",
+                    completedTaskIds = setOf(legacyTask.id, otherTask.id),
+                    repetitionsByTask = mapOf(
+                        legacyTask.id to 3,
+                        otherTask.id to 2,
+                    ),
+                ),
+            ),
+            events = listOf(
+                PracticeEvent(
+                    id = "legacy-event",
+                    date = "2026-10-31",
+                    taskId = legacyTask.id,
+                    taskTitle = legacyTask.title,
+                    event = "Done",
+                    atMillis = 20L,
+                    sessionId = legacySession.id,
+                ),
+                PracticeEvent(
+                    id = "other-event",
+                    date = "2026-10-31",
+                    taskId = otherTask.id,
+                    taskTitle = otherTask.title,
+                    event = "Done",
+                    atMillis = 30L,
+                    childProfileId = "other-child",
+                    sessionId = otherSession.id,
+                ),
+            ),
+            sessions = listOf(legacySession, otherSession),
+        ).scopedTo(current)
+
+        assertEquals(setOf("legacy-task", "current-task"), scoped.tasks.map { it.id }.toSet())
+        assertTrue(scoped.tasks.all { it.childProfileId == current.id })
+        assertTrue(scoped.tasks.all { it.instrument == current.instrument })
+        assertEquals(setOf("legacy-task"), scoped.progressByDate.getValue("2026-10-31").completedTaskIds)
+        assertEquals(listOf("legacy-event"), scoped.events.map(PracticeEvent::id))
+        assertEquals(listOf("legacy-session"), scoped.sessions.map(PracticeSession::id))
+        assertEquals(current.id, scoped.events.single().childProfileId)
+        assertEquals(current.id, scoped.sessions.single().childProfileId)
+    }
+
+    @Test
+    fun parentPinMustBeExactlyFourDigits() {
+        assertTrue(isValidAdultPin("0319"))
+        assertFalse(isValidAdultPin("319"))
+        assertFalse(isValidAdultPin("03190"))
+        assertFalse(isValidAdultPin("03a9"))
+    }
+
+    @Test
+    fun timeGoalUsesAllSessionsForTheAssignment() {
+        val task = PracticeTask(
+            id = "time-task",
+            assignedDate = "2026-11-01",
+            title = "Repertoire passage",
+            source = "",
+            sourceType = SourceType.NONE,
+            startSeconds = 0,
+            endSeconds = null,
+            repetitions = 1,
+            goalType = PracticeGoalType.TIME,
+            targetSeconds = 5 * 60,
+        )
+        val state = PracticeUiState(
+            snapshot = PracticeSnapshot(
+                tasks = listOf(task),
+                sessions = listOf(
+                    PracticeSession(
+                        id = "one",
+                        childProfileId = "student",
+                        assignmentId = task.id,
+                        assignmentTitle = task.title,
+                        instrument = "Violin",
+                        date = task.assignedDate,
+                        mode = PracticeMode.PLAY_YOURSELF,
+                        startedAtMillis = 1L,
+                        elapsedSeconds = 120,
+                        status = PracticeSessionStatus.ENDED,
+                    ),
+                    PracticeSession(
+                        id = "two",
+                        childProfileId = "student",
+                        assignmentId = task.id,
+                        assignmentTitle = task.title,
+                        instrument = "Violin",
+                        date = task.assignedDate,
+                        mode = PracticeMode.PLAY_YOURSELF,
+                        startedAtMillis = 2L,
+                        elapsedSeconds = 180,
+                        status = PracticeSessionStatus.COMPLETED,
+                    ),
+                ),
+            ),
+            activeChildProfileId = "student",
+            currentDate = task.assignedDate,
+        )
+
+        assertTrue(state.goalMet(task))
+        assertEquals("5 min / 5 min", state.progressLabel(task))
+    }
+
+    @Test
+    fun weeklySummaryKeepsRestDaysWithoutInventingAStreak() {
+        val state = PracticeUiState(
+            snapshot = PracticeSnapshot(
+                progressByDate = mapOf(
+                    "2026-10-26" to DailyProgress(
+                        date = "2026-10-26",
+                        elapsedSeconds = 300,
+                    ),
+                    "2026-10-29" to DailyProgress(
+                        date = "2026-10-29",
+                        elapsedSeconds = 420,
+                    ),
+                ),
+            ),
+            activeChildProfileId = "student",
+            currentDate = "2026-11-01",
+            summaryDate = "2026-11-01",
+        )
+
+        val week = state.weeklySummary()
+
+        assertEquals("2026-10-26", week.startDate)
+        assertEquals("2026-11-01", week.endDate)
+        assertEquals(7, week.days.size)
+        assertEquals(2, week.practicedDays)
+        assertEquals(720L, week.totalSeconds)
+    }
+
+    @Test
+    fun instrumentTemplatesStaySmallAndInstrumentSpecific() {
+        val violin = assignmentTemplatesFor("Violin")
+        val piano = assignmentTemplatesFor("Piano")
+        val generic = assignmentTemplatesFor("Cello")
+
+        assertEquals(3, violin.size)
+        assertEquals(3, piano.size)
+        assertEquals(3, generic.size)
+        assertTrue(violin.first().title.contains("bow", ignoreCase = true))
+        assertTrue(piano.first().title.contains("arpeggios", ignoreCase = true))
+        assertEquals("Warm-up", generic.first().title)
+        assertTrue(
+            (violin + piano + generic).all {
+                it.enabledModes == setOf(PracticeMode.PLAY_YOURSELF)
+            },
+        )
+    }
+
+    @Test
+    fun archivedAssignmentIsHiddenFromTodayButKeptInSummaryHistory() {
+        val active = PracticeTask(
+            id = "active",
+            assignedDate = "2026-11-01",
+            title = "Active",
+            source = "",
+            sourceType = SourceType.NONE,
+            startSeconds = 0,
+            endSeconds = null,
+            repetitions = 3,
+        )
+        val archived = active.copy(
+            id = "archived",
+            title = "Archived",
+            archivedAtMillis = 1_800_000_000_000,
+            revision = 2,
+        )
+        val state = PracticeUiState(
+            snapshot = PracticeSnapshot(tasks = listOf(active, archived)),
+            activeChildProfileId = "student",
+            currentDate = "2026-11-01",
+            summaryDate = "2026-11-01",
+        )
+
+        assertEquals(listOf("active"), state.todayTasks.map(PracticeTask::id))
+        assertEquals(
+            setOf("active", "archived"),
+            state.summaryTasks.map(PracticeTask::id).toSet(),
+        )
+        assertEquals(listOf("archived"), state.archivedTasksForDate("2026-11-01").map { it.id })
+    }
 }

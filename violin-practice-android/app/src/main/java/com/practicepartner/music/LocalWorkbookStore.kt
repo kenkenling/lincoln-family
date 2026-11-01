@@ -35,7 +35,7 @@ class LocalWorkbookStore(context: Context) {
         if (!accessible) return null
         return LocalWorkbookFile(
             uri = uri.toString(),
-            name = displayName(uri) ?: "Practice Partner.xlsx",
+            name = displayName(uri) ?: "LK Practice.xlsx",
         )
     }
 
@@ -56,7 +56,7 @@ class LocalWorkbookStore(context: Context) {
             !PracticeWorkbookDetector.matches(ByteArrayInputStream(existingBytes))
         ) {
             throw LocalWorkbookException(
-                "This file already contains another workbook. Choose a new name or a Practice Partner workbook.",
+                "This file already contains another workbook. Choose a new name or an LK Practice workbook.",
             )
         }
 
@@ -128,7 +128,7 @@ class LocalWorkbookStore(context: Context) {
         )
         if (!PracticeWorkbookDetector.matches(ByteArrayInputStream(bytes))) {
             throw LocalWorkbookException(
-                "Choose a workbook previously created by Practice Partner. Other Excel files are not overwritten.",
+                "Choose a workbook previously created by LK Practice. Other Excel files are not overwritten.",
             )
         }
     }
@@ -149,7 +149,7 @@ class LocalWorkbookStore(context: Context) {
                 total += read
                 if (total > MAX_WORKBOOK_BYTES) {
                     throw LocalWorkbookException(
-                        "This workbook is unexpectedly large. Choose the Practice Partner file again.",
+                        "This workbook is unexpectedly large. Choose the LK Practice file again.",
                     )
                 }
                 output.write(buffer, 0, read)

@@ -4,6 +4,7 @@ import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 import java.util.zip.ZipInputStream
@@ -12,6 +13,8 @@ import kotlin.math.floor
 
 data class WorkbookAssignment(
     val id: String,
+    val childProfileId: String,
+    val instrument: String,
     val assignedDate: String,
     val title: String,
     val sourceType: SourceType,
@@ -23,6 +26,12 @@ data class WorkbookAssignment(
     val whyImportant: String,
     val sheetMusicUri: String?,
     val needsSheetMusicReattachment: Boolean,
+    val assignmentType: AssignmentType,
+    val goalType: PracticeGoalType,
+    val targetSeconds: Int,
+    val enabledModes: Set<PracticeMode>,
+    val revision: Int,
+    val archivedAtMillis: Long?,
     val generatedId: Boolean = false,
 )
 
@@ -70,11 +79,18 @@ object XlsxWorkbookReader {
         val header = rows.first().mapIndexed { index, value ->
             value.trim().lowercase() to index
         }.toMap()
-        val required = PracticeWorkbookTemplate.assignmentHeaders
-            .take(8)
-            .map(String::lowercase)
+        val required = listOf(
+            "Assignment ID",
+            "Assigned Date",
+            "Title",
+            "Reference Type",
+            "Reference Link",
+            "Clip Start Seconds",
+            "Clip End Seconds",
+            "Target Repetitions",
+        ).map(String::lowercase)
         if (!required.all(header::containsKey)) {
-            return failure("The Assignments worksheet does not use the Practice Partner columns.")
+            return failure("The Assignments worksheet does not use the LK Practice columns.")
         }
 
         val assignments = mutableListOf<WorkbookAssignment>()
@@ -100,12 +116,46 @@ object XlsxWorkbookReader {
             val start = field("clip start seconds").ifBlank { "0" }.toIntOrNull()
             val end = field("clip end seconds").takeIf(String::isNotBlank)?.toIntOrNull()
             val repetitions = field("target repetitions").toIntOrNull()
+            val declaredAssignmentType = field("assignment type")
+                .takeIf(String::isNotBlank)
+                ?.let { runCatching { AssignmentType.valueOf(it.uppercase()) }.getOrNull() }
+            val assignmentType = declaredAssignmentType ?: AssignmentType.TECHNIQUE
+            val declaredGoalType = field("goal type")
+                .takeIf(String::isNotBlank)
+                ?.let { runCatching { PracticeGoalType.valueOf(it.uppercase()) }.getOrNull() }
+            val goalType = declaredGoalType ?: PracticeGoalType.REPETITIONS
+            val targetMinutes = field("target minutes")
+                .takeIf(String::isNotBlank)
+                ?.toIntOrNull()
+            val practiceStepsText = field("practice steps")
+            val enabledModes = if (practiceStepsText.isBlank()) {
+                if (type == SourceType.NONE) {
+                    setOf(PracticeMode.PLAY_YOURSELF)
+                } else {
+                    PracticeMode.entries.toSet()
+                }
+            } else {
+                practiceStepsText
+                    .split('|', ',', ';')
+                    .mapNotNullTo(linkedSetOf()) { value ->
+                        runCatching {
+                            PracticeMode.valueOf(value.trim().uppercase())
+                        }.getOrNull()
+                    }
+            }
+            val revision = field("revision").ifBlank { "1" }.toIntOrNull()
+            val archivedAtText = field("archived utc")
+            val archivedAtMillis = archivedAtText
+                .takeIf(String::isNotBlank)
+                ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
             val error = when {
                 date == null -> "invalid assigned date; use YYYY-MM-DD or an Excel date"
                 title.isBlank() -> "missing title"
                 field("reference type").isNotBlank() && declaredType == null ->
                     "invalid reference type"
                 type == null -> "reference type or link is missing"
+                type == SourceType.NONE && source.isNotBlank() ->
+                    "reference type NONE requires an empty reference link"
                 type == SourceType.YOUTUBE && youtubeVideoId(source) == null ->
                     "invalid YouTube reference"
                 type == SourceType.LOCAL && source.isNotBlank() && !source.startsWith("content://") ->
@@ -113,8 +163,24 @@ object XlsxWorkbookReader {
                 start == null || start < 0 -> "invalid clip start"
                 field("clip end seconds").isNotBlank() && end == null -> "invalid clip end"
                 end != null && end <= start -> "clip end must be after clip start"
-                repetitions == null || repetitions !in 1..20 ->
+                goalType == PracticeGoalType.REPETITIONS &&
+                    (repetitions == null || repetitions !in 1..20) ->
                     "target repetitions must be between 1 and 20"
+                field("assignment type").isNotBlank() && declaredAssignmentType == null ->
+                    "invalid assignment type"
+                field("goal type").isNotBlank() && declaredGoalType == null ->
+                    "invalid goal type"
+                goalType == PracticeGoalType.TIME &&
+                    (targetMinutes == null || targetMinutes !in 1..60) ->
+                    "target minutes must be between 1 and 60"
+                practiceStepsText.isNotBlank() && enabledModes.isEmpty() ->
+                    "practice steps are invalid"
+                type == SourceType.NONE &&
+                    enabledModes != setOf(PracticeMode.PLAY_YOURSELF) ->
+                    "assignments without a reference must use PLAY_YOURSELF"
+                revision == null || revision < 1 -> "revision must be one or greater"
+                archivedAtText.isNotBlank() && archivedAtMillis == null ->
+                    "archived UTC must be an ISO-8601 timestamp"
                 id in seenAssignmentIds -> "duplicate assignment ID"
                 else -> null
             }
@@ -124,18 +190,34 @@ object XlsxWorkbookReader {
                 seenAssignmentIds += id
                 assignments += WorkbookAssignment(
                     id = id,
+                    childProfileId = field("student id"),
+                    instrument = field("instrument"),
                     assignedDate = date!!,
                     title = title,
                     sourceType = type!!,
                     source = source,
                     startSeconds = start!!,
                     endSeconds = end,
-                    repetitions = repetitions!!,
+                    repetitions = if (goalType == PracticeGoalType.REPETITIONS) {
+                        repetitions!!
+                    } else {
+                        1
+                    },
                     coachNote = field("teacher note"),
                     whyImportant = field("why important"),
                     sheetMusicUri = field("sheet music link").takeIf(String::isNotBlank),
                     needsSheetMusicReattachment =
                         field("has local sheet music").equals("yes", true),
+                    assignmentType = assignmentType,
+                    goalType = goalType,
+                    targetSeconds = if (goalType == PracticeGoalType.TIME) {
+                        targetMinutes!! * 60
+                    } else {
+                        0
+                    },
+                    enabledModes = enabledModes,
+                    revision = revision!!,
+                    archivedAtMillis = archivedAtMillis,
                     generatedId = suppliedId.isBlank(),
                 )
             }

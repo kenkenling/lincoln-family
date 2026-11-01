@@ -17,18 +17,53 @@ enum class PracticeMode(val label: String) {
     PLAY_YOURSELF("Play Yourself"),
 }
 
+enum class AssignmentType(val label: String) {
+    WARM_UP("Warm-up"),
+    TECHNIQUE("Technique"),
+    REPERTOIRE("Repertoire"),
+    OTHER("Other"),
+}
+
+enum class PracticeGoalType(val label: String) {
+    REPETITIONS("Repetitions"),
+    TIME("Practice time"),
+}
+
+enum class PracticeReflection(
+    val kidLabel: String,
+    val summaryLabel: String,
+) {
+    PROUD("I’m proud", "Felt proud"),
+    MAKING_PROGRESS("I’m getting there", "Making progress"),
+    NEED_HELP("I need help", "Would like help"),
+}
+
 enum class SourceType {
+    NONE,
     YOUTUBE,
     LOCAL,
 }
 
-data class StudentProfile(
+data class Household(
     val id: String,
-    val name: String = "Lincoln",
+    val name: String = "Our Family",
+    val childProfiles: List<ChildProfile>,
+    val activeChildProfileId: String,
+) {
+    val activeChildProfile: ChildProfile?
+        get() = childProfiles.firstOrNull { it.id == activeChildProfileId }
+            ?: childProfiles.firstOrNull()
+}
+
+data class ChildProfile(
+    val id: String,
+    val name: String = "Student",
     val instrument: String = "Violin",
     val excelWorkbookUri: String? = null,
     val excelWorkbookName: String? = null,
 )
+
+typealias StudentProfile = ChildProfile
 
 enum class LocalFileStatus {
     NOT_CONFIGURED,
@@ -47,7 +82,7 @@ data class LocalFileUiState(
     val detail: String = "",
 )
 
-data class PracticeTask(
+data class Assignment(
     val id: String,
     val assignedDate: String,
     val title: String,
@@ -59,10 +94,21 @@ data class PracticeTask(
     val coachNote: String = "",
     val whyImportant: String = "",
     val sheetMusicUri: String? = null,
+    val childProfileId: String = "",
+    val instrument: String = "",
+    val assignmentType: AssignmentType = AssignmentType.TECHNIQUE,
+    val goalType: PracticeGoalType = PracticeGoalType.REPETITIONS,
+    val targetSeconds: Int = 0,
+    val enabledModes: Set<PracticeMode> = setOf(PracticeMode.PLAY_YOURSELF),
+    val revision: Int = 1,
+    val archivedAtMillis: Long? = null,
 )
+
+typealias PracticeTask = Assignment
 
 data class DailyProgress(
     val date: String,
+    val childProfileId: String = "",
     val completedTaskIds: Set<String> = emptySet(),
     val repetitionsByTask: Map<String, Int> = emptyMap(),
     val elapsedSeconds: Long = 0L,
@@ -83,14 +129,22 @@ data class DailyProgress(
         return if (isCompleted) {
             copy(
                 completedTaskIds = completedTaskIds - task.id,
-                repetitionsByTask = repetitionsByTask + (
-                    task.id to (task.repetitions - 1).coerceAtLeast(0)
-                    ),
+                repetitionsByTask = if (task.goalType == PracticeGoalType.REPETITIONS) {
+                    repetitionsByTask + (
+                        task.id to (task.repetitions - 1).coerceAtLeast(0)
+                        )
+                } else {
+                    repetitionsByTask
+                },
             )
         } else {
             copy(
                 completedTaskIds = completedTaskIds + task.id,
-                repetitionsByTask = repetitionsByTask + (task.id to task.repetitions),
+                repetitionsByTask = if (task.goalType == PracticeGoalType.REPETITIONS) {
+                    repetitionsByTask + (task.id to task.repetitions)
+                } else {
+                    repetitionsByTask
+                },
             )
         }
     }
@@ -111,12 +165,43 @@ data class PracticeEvent(
     val videoUri: String? = null,
     val videoPath: String? = null,
     val videoFileName: String? = null,
+    val childProfileId: String = "",
+    val sessionId: String? = null,
+)
+
+enum class PracticeSessionStatus {
+    ACTIVE,
+    COMPLETED,
+    ENDED,
+    INTERRUPTED,
+}
+
+data class PracticeSession(
+    val id: String,
+    val childProfileId: String,
+    val assignmentId: String,
+    val assignmentTitle: String,
+    val instrument: String,
+    val date: String,
+    val mode: PracticeMode,
+    val startedAtMillis: Long,
+    val endedAtMillis: Long? = null,
+    val repetitionsCompleted: Int = 0,
+    val status: PracticeSessionStatus = PracticeSessionStatus.ACTIVE,
+    val assignmentRevision: Int = 1,
+    val assignmentType: AssignmentType = AssignmentType.TECHNIQUE,
+    val goalType: PracticeGoalType = PracticeGoalType.REPETITIONS,
+    val targetRepetitions: Int = 1,
+    val targetSeconds: Int = 0,
+    val elapsedSeconds: Long = 0L,
+    val reflection: PracticeReflection? = null,
 )
 
 data class PracticeSnapshot(
     val tasks: List<PracticeTask> = emptyList(),
     val progressByDate: Map<String, DailyProgress> = emptyMap(),
     val events: List<PracticeEvent> = emptyList(),
+    val sessions: List<PracticeSession> = emptyList(),
 )
 
 data class RecordingFile(
@@ -127,48 +212,262 @@ data class RecordingFile(
 
 data class PracticeUiState(
     val snapshot: PracticeSnapshot,
+    val activeChildProfileId: String,
     val currentDate: String,
     val summaryDate: String = currentDate,
     val page: AppPage = AppPage.TODAY,
     val mode: PracticeMode = PracticeMode.LISTEN,
     val selectedTaskId: String? = null,
     val activeTaskId: String? = null,
+    val activeSessionId: String? = null,
     val running: Boolean = false,
     val elapsedSeconds: Long = 0L,
+    val activeSessionElapsedSeconds: Long = 0L,
     val recordingActive: Boolean = false,
+    val pendingReflectionSessionId: String? = null,
     val message: String = "",
 ) {
     val todayTasks: List<PracticeTask>
-        get() = snapshot.tasks.filter { it.assignedDate == currentDate }
+        get() = snapshot.tasks.filter {
+            it.assignedDate == currentDate && it.archivedAtMillis == null
+        }
 
     val todayProgress: DailyProgress
-        get() = snapshot.progressByDate[currentDate] ?: DailyProgress(currentDate)
+        get() = snapshot.progressByDate[currentDate] ?: DailyProgress(
+            date = currentDate,
+            childProfileId = activeChildProfileId,
+        )
 
     val todayEvents: List<PracticeEvent>
         get() = snapshot.events.filter { it.date == currentDate }
+
+    val todaySessions: List<PracticeSession>
+        get() = snapshot.sessions.filter { it.date == currentDate }
 
     val summaryTasks: List<PracticeTask>
         get() = snapshot.tasks.filter { it.assignedDate == summaryDate }
 
     val summaryProgress: DailyProgress
-        get() = snapshot.progressByDate[summaryDate] ?: DailyProgress(summaryDate)
+        get() = snapshot.progressByDate[summaryDate] ?: DailyProgress(
+            date = summaryDate,
+            childProfileId = activeChildProfileId,
+        )
 
     val summaryEvents: List<PracticeEvent>
         get() = snapshot.events.filter { it.date == summaryDate }
+
+    val summarySessions: List<PracticeSession>
+        get() = snapshot.sessions.filter { it.date == summaryDate }
 
     val historyDates: List<String>
         get() = (
             snapshot.tasks.map(PracticeTask::assignedDate) +
                 snapshot.progressByDate.keys +
                 snapshot.events.map(PracticeEvent::date) +
+                snapshot.sessions.map(PracticeSession::date) +
                 currentDate
             ).distinct().sorted()
 
     val activeTask: PracticeTask?
         get() = snapshot.tasks.firstOrNull { it.id == activeTaskId }
 
+    val pendingReflectionSession: PracticeSession?
+        get() = snapshot.sessions.firstOrNull { it.id == pendingReflectionSessionId }
+
     fun tasksForDate(date: String): List<PracticeTask> =
-        snapshot.tasks.filter { it.assignedDate == date }
+        snapshot.tasks.filter {
+            it.assignedDate == date && it.archivedAtMillis == null
+        }
+
+    fun archivedTasksForDate(date: String): List<PracticeTask> =
+        snapshot.tasks.filter {
+            it.assignedDate == date && it.archivedAtMillis != null
+        }
+
+    fun secondsForTask(taskId: String, date: String): Long =
+        snapshot.sessions
+            .asSequence()
+            .filter { it.assignmentId == taskId && it.date == date }
+            .sumOf { session ->
+                if (session.id == activeSessionId) {
+                    maxOf(session.elapsedSeconds, activeSessionElapsedSeconds)
+                } else {
+                    session.elapsedSeconds
+                }
+            }
+
+    fun goalMet(task: PracticeTask, date: String = task.assignedDate): Boolean {
+        val progress = snapshot.progressByDate[date] ?: DailyProgress(date)
+        if (task.id in progress.completedTaskIds) return true
+        return when (task.goalType) {
+            PracticeGoalType.REPETITIONS ->
+                progress.repetitionsFor(task.id) >= task.repetitions
+            PracticeGoalType.TIME ->
+                task.targetSeconds > 0 && secondsForTask(task.id, date) >= task.targetSeconds
+        }
+    }
+
+    fun progressLabel(task: PracticeTask, date: String = task.assignedDate): String =
+        when (task.goalType) {
+            PracticeGoalType.REPETITIONS ->
+                "${snapshot.progressByDate[date]?.repetitionsFor(task.id) ?: 0} / " +
+                    "${task.repetitions} repetitions"
+            PracticeGoalType.TIME ->
+                "${formatGoalDuration(secondsForTask(task.id, date))} / " +
+                    "${formatGoalDuration(task.targetSeconds.toLong())}"
+        }
+
+    fun weeklySummary(anchorDate: String = summaryDate): WeeklyPracticeSummary {
+        val anchor = runCatching { LocalDate.parse(anchorDate) }.getOrDefault(LocalDate.now())
+        val firstDay = anchor.minusDays((anchor.dayOfWeek.value - 1).toLong())
+        val days = (0L..6L).map { offset ->
+            val date = firstDay.plusDays(offset).toString()
+            val sessionSeconds = snapshot.sessions
+                .filter { it.date == date }
+                .sumOf(PracticeSession::elapsedSeconds)
+            val progressSeconds = if (date == currentDate) {
+                elapsedSeconds
+            } else {
+                snapshot.progressByDate[date]?.elapsedSeconds ?: 0L
+            }
+            val seconds = maxOf(sessionSeconds, progressSeconds)
+            val practiced = seconds > 0L ||
+                snapshot.sessions.any {
+                    it.date == date && it.repetitionsCompleted > 0
+                }
+            WeeklyPracticeDay(
+                date = date,
+                practiced = practiced,
+                seconds = seconds,
+            )
+        }
+        return WeeklyPracticeSummary(
+            startDate = firstDay.toString(),
+            endDate = firstDay.plusDays(6).toString(),
+            days = days,
+        )
+    }
+}
+
+data class WeeklyPracticeDay(
+    val date: String,
+    val practiced: Boolean,
+    val seconds: Long,
+)
+
+data class WeeklyPracticeSummary(
+    val startDate: String,
+    val endDate: String,
+    val days: List<WeeklyPracticeDay>,
+) {
+    val practicedDays: Int
+        get() = days.count(WeeklyPracticeDay::practiced)
+
+    val totalSeconds: Long
+        get() = days.sumOf(WeeklyPracticeDay::seconds)
+}
+
+data class AssignmentTemplate(
+    val label: String,
+    val title: String,
+    val assignmentType: AssignmentType,
+    val goalType: PracticeGoalType,
+    val repetitions: Int = 3,
+    val targetSeconds: Int = 0,
+    val enabledModes: Set<PracticeMode> = setOf(PracticeMode.PLAY_YOURSELF),
+    val coachNote: String = "",
+)
+
+fun assignmentTemplatesFor(instrument: String): List<AssignmentTemplate> {
+    val normalized = instrument.trim().lowercase()
+    return when {
+        normalized.contains("violin") -> listOf(
+            AssignmentTemplate(
+                label = "Violin warm-up",
+                title = "Scales and bow warm-up",
+                assignmentType = AssignmentType.WARM_UP,
+                goalType = PracticeGoalType.REPETITIONS,
+                repetitions = 3,
+                coachNote = "Use a relaxed bow hold and listen for an even sound.",
+            ),
+            AssignmentTemplate(
+                label = "Violin technique",
+                title = "Technique focus",
+                assignmentType = AssignmentType.TECHNIQUE,
+                goalType = PracticeGoalType.REPETITIONS,
+                repetitions = 5,
+                coachNote = "Start slowly, stay relaxed, and repeat the small section.",
+            ),
+            AssignmentTemplate(
+                label = "Violin piece",
+                title = "Repertoire passage",
+                assignmentType = AssignmentType.REPERTOIRE,
+                goalType = PracticeGoalType.TIME,
+                targetSeconds = 10 * 60,
+                coachNote = "Choose a short passage and improve one detail at a time.",
+            ),
+        )
+        normalized.contains("piano") -> listOf(
+            AssignmentTemplate(
+                label = "Piano warm-up",
+                title = "Scales and arpeggios",
+                assignmentType = AssignmentType.WARM_UP,
+                goalType = PracticeGoalType.REPETITIONS,
+                repetitions = 3,
+                coachNote = "Use steady rhythm and relaxed hands.",
+            ),
+            AssignmentTemplate(
+                label = "Piano technique",
+                title = "Hands-separate practice",
+                assignmentType = AssignmentType.TECHNIQUE,
+                goalType = PracticeGoalType.REPETITIONS,
+                repetitions = 5,
+                coachNote = "Practice each hand slowly before putting them together.",
+            ),
+            AssignmentTemplate(
+                label = "Piano piece",
+                title = "Repertoire passage",
+                assignmentType = AssignmentType.REPERTOIRE,
+                goalType = PracticeGoalType.TIME,
+                targetSeconds = 10 * 60,
+                coachNote = "Choose a small section and keep the pulse steady.",
+            ),
+        )
+        else -> listOf(
+            AssignmentTemplate(
+                label = "Warm-up",
+                title = "Warm-up",
+                assignmentType = AssignmentType.WARM_UP,
+                goalType = PracticeGoalType.TIME,
+                targetSeconds = 5 * 60,
+            ),
+            AssignmentTemplate(
+                label = "Technique",
+                title = "Technique focus",
+                assignmentType = AssignmentType.TECHNIQUE,
+                goalType = PracticeGoalType.REPETITIONS,
+                repetitions = 5,
+            ),
+            AssignmentTemplate(
+                label = "Music",
+                title = "Repertoire passage",
+                assignmentType = AssignmentType.REPERTOIRE,
+                goalType = PracticeGoalType.TIME,
+                targetSeconds = 10 * 60,
+            ),
+        )
+    }
+}
+
+fun formatGoalDuration(seconds: Long): String {
+    val safeSeconds = seconds.coerceAtLeast(0L)
+    val minutes = safeSeconds / 60
+    val remainingSeconds = safeSeconds % 60
+    return if (remainingSeconds == 0L) {
+        "$minutes min"
+    } else {
+        "$minutes:${remainingSeconds.toString().padStart(2, '0')}"
+    }
 }
 
 fun currentDateKey(): String = LocalDate.now().toString()
@@ -202,7 +501,52 @@ fun youtubeVideoId(value: String): String? {
 }
 
 fun sourceTypeFor(value: String): SourceType? = when {
+    value.isBlank() -> SourceType.NONE
     value.trim().startsWith("content://") -> SourceType.LOCAL
     youtubeVideoId(value) != null -> SourceType.YOUTUBE
     else -> null
+}
+
+fun PracticeSnapshot.scopedTo(profile: ChildProfile): PracticeSnapshot {
+    fun belongsTo(childProfileId: String): Boolean =
+        childProfileId.isBlank() || childProfileId == profile.id
+
+    val scopedTasks = tasks
+        .filter { belongsTo(it.childProfileId) }
+        .map { task ->
+            task.copy(
+                childProfileId = profile.id,
+                instrument = task.instrument.ifBlank { profile.instrument },
+            )
+        }
+    val scopedTaskIds = scopedTasks.mapTo(mutableSetOf()) { it.id }
+    val scopedProgress = progressByDate.mapNotNull { (date, progress) ->
+        if (!belongsTo(progress.childProfileId)) {
+            null
+        } else {
+            date to progress.copy(
+                childProfileId = profile.id,
+                completedTaskIds = progress.completedTaskIds.intersect(scopedTaskIds),
+                repetitionsByTask = progress.repetitionsByTask.filterKeys(scopedTaskIds::contains),
+            )
+        }
+    }.toMap()
+    val scopedSessions = sessions
+        .filter { belongsTo(it.childProfileId) }
+        .map { it.copy(childProfileId = profile.id) }
+    val scopedSessionIds = scopedSessions.mapTo(mutableSetOf()) { it.id }
+    val scopedEvents = events
+        .filter { belongsTo(it.childProfileId) }
+        .map { event ->
+            event.copy(
+                childProfileId = profile.id,
+                sessionId = event.sessionId?.takeIf(scopedSessionIds::contains),
+            )
+        }
+    return PracticeSnapshot(
+        tasks = scopedTasks,
+        progressByDate = scopedProgress,
+        events = scopedEvents,
+        sessions = scopedSessions,
+    )
 }

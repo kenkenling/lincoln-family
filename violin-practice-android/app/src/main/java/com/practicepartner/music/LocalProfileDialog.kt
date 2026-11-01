@@ -120,10 +120,10 @@ fun LocalProfileDialog(
                         onClick = { saveThen(onChooseExistingFile) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Choose existing Practice Partner file")
+                        Text("Choose existing LK Practice file")
                     }
                     Text(
-                        "Suggested file: Practice Partner - ${name.trim().ifBlank { "Lincoln" }}.xlsx",
+                        "Suggested file: LK Practice - ${name.trim().ifBlank { "Student" }}.xlsx",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -177,7 +177,7 @@ fun LocalProfileDialog(
                 }
 
                 Text(
-                    "The file contains Profile, Assignments, Daily Progress, Daily Summary, and Practice Log sheets. Practice Log includes safe recording filenames, but video content and private device paths are never written into Excel.",
+                    "The file contains Profile, Assignments, Daily Progress, Daily Summary, Practice Sessions, and Practice Log sheets. Practice Log includes safe recording filenames, but video content and private device paths are never written into Excel.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Muted,
                 )
@@ -193,7 +193,7 @@ fun LocalProfileDialog(
                     shape = RoundedCornerShape(16.dp),
                 ) {
                     Text(
-                        "Recorded takes stay privately inside Practice Partner. Open them from Summary and use Android Share only when you choose.",
+                        "Recorded takes stay privately inside LK Practice. Open them from Summary and use Android Share only when you choose.",
                         modifier = Modifier.fillMaxWidth().padding(14.dp),
                         style = MaterialTheme.typography.bodySmall,
                     )

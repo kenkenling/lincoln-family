@@ -1,34 +1,67 @@
-# Practice Partner for Android
+# LK Practice for Android
 
-Practice Partner is a simple parent-to-child violin-practice app. It is separate from the Lincoln Family web portal and is local-first: recordings and device file paths remain private unless a parent explicitly shares or exports something.
+LK Practice is a child-first music-practice app with a protected Parent Space.
+It is separate from the Lincoln Family web portal and remains local-first:
+recordings and private device paths are not shared unless a parent explicitly
+uses Android Share or exports a file.
 
-## Version 0.8.0 workflow
+Primary message: **Practice Makes Progress.**
 
-- **Today:** the child lands directly on a sky-themed practice screen with a large one-tap start button, practice modes, and today’s assignments.
-- **Grown-up tools:** Assign, Summary, and Profile & local file are grouped behind the small settings button instead of permanent child-facing navigation.
-- **Assign:** parents or coaches can create, edit, move, remove, import, or export assignments for any date. Sheet music is optional.
-- **Summary:** parents or coaches can browse previous practice dates, elapsed practice time, repetitions, completion, and saved takes.
-- Practice time pauses when the app leaves the screen and resumes when the active session returns.
-- Camera and microphone permission can be requested again. Recording deletion requires confirmation and removes both the managed file and its log entry.
-- Recorded takes use sortable names such as `2026-10-31 - Lincoln - Boreas Violin 2 - Take 01.mp4`. The same title is supplied to Android Share for manual YouTube uploads.
-- The app keeps a last-known-good local snapshot and reports when damaged records were recovered or skipped.
-- CSV export removes private local URIs. Imported device-video assignments remain as reattachment placeholders instead of pretending the old URI is portable.
+## Version 0.11.0 workflow
 
-## Local Excel file
+- **Choose profile:** the app opens to named child cards and a Parent Space card.
+- **Today:** a child enters a profile in one tap and sees the existing
+  sky-themed mission-first practice screen.
+- **Parent Space:** assignments, summaries, profiles, local files, video
+  sharing, and recording deletion require a local four-digit parent PIN.
+- **Family profiles:** each child has separate assignments, progress, events,
+  practice sessions, recordings, and optional Excel file.
+- **Family data controls:** a parent can export one child to a ZIP containing
+  readable profile, assignment, history, and available app-managed recordings.
+  Deletion requires typing the child’s name, cannot remove the last profile,
+  and leaves any external Excel file in place.
+- **Assignments:** parents can create, edit, move, archive, restore, remove,
+  import, or export a plan for any date. Archiving hides an assignment from
+  Today while preserving its history. Violin, piano, and generic quick-start
+  templates keep setup simple. Each assignment chooses a kind, a repetition or
+  time goal, and one or more allowed practice steps. A reference video and
+  sheet music are optional.
+- **Practice sessions:** each session records its child, assignment, instrument,
+  assignment version, goal snapshot, mode, status, elapsed time, repetitions,
+  and optional one-tap reflection.
+- **Summary:** parents can browse practice dates, elapsed time, repetitions,
+  completion, saved takes, session outcomes, reflections, and a gentle
+  seven-day practice pattern without streak penalties.
+- Practice time pauses when the app leaves the screen. Parent Space locks when
+  the app backgrounds, except while an authorized Android file picker is open.
+- Recorded takes use sortable names such as
+  `2026-10-31 - Lincoln - Boreas Violin 2 - Take 01.mp4`. The same title is
+  supplied to Android Share for manual uploads.
+- The app keeps a last-known-good local snapshot and reports when damaged
+  records were recovered or skipped.
 
-Profile no longer contains Google Drive or YouTube channel connections. The app uses one local `.xlsx` file chosen through Android's local-only document picker.
+The current release has no parent account, cloud sync, teacher invitation,
+Google Drive, Google Sheets, or YouTube channel connection. The PIN is a local
+shared-device gate, not online authentication.
 
-From Profile, a parent can:
+## Local Excel files
 
-- Create a local Practice Partner workbook.
-- Choose an existing Practice Partner workbook.
-- Save current app assignments and a practice snapshot to the file.
+Each child can have one local `.xlsx` file chosen through Android's local-only
+document picker. From **Parent Space > Profile & local file**, a parent can:
+
+- Create a new `LK Practice - Student Name.xlsx` workbook.
+- Choose an existing LK Practice or compatible legacy Practice Partner workbook.
+- Save current assignments and a readable practice snapshot.
 - Load assignment additions or edits from the file.
 - Open the file in an installed spreadsheet app.
 
-Assignment and profile changes are saved automatically after editing settles. **Save changes to local file** is available for an immediate update. Loading is blocked while newer app changes are waiting to be saved, which avoids replacing them accidentally.
+Assignment and profile changes are saved automatically after editing settles.
+**Save changes to local file** forces an immediate update. Loading is blocked
+while newer app changes are waiting to be saved.
 
-Assignments are the bidirectional data set. Practice timing, repetitions, completion, and event details remain local-first for now. The workbook receives a current practice snapshot when assignments or the profile are saved, but practice-history sheets are not loaded back into the app.
+Assignments are bidirectional. Practice timing, repetitions, completion,
+sessions, and events remain local-first; workbook history sheets are readable
+snapshots and are not loaded back into the app.
 
 The workbook contains:
 
@@ -36,15 +69,31 @@ The workbook contains:
 - `Assignments`
 - `Daily Progress`
 - `Daily Summary`
+- `Practice Sessions`
 - `Practice Log`
 
-See [LOCAL_FILE_SETUP.md](LOCAL_FILE_SETUP.md).
+See [LOCAL_FILE_SETUP.md](LOCAL_FILE_SETUP.md) for exact columns.
 
-Video content, private filesystem paths, local video URIs, and local sheet-music URIs are excluded from Excel. The safe recording filename is included in `Practice Log` so takes can be matched with manually shared or uploaded copies. Recorded practice takes stay inside Practice Partner and use Android Share only when a parent chooses. Teacher YouTube reference links inside assignments remain available, but there is no YouTube account or channel connection.
+Video content, private filesystem paths, local video URIs, and local sheet-music
+URIs are excluded from Excel. A safe recording filename is included in
+`Practice Log`. Teacher YouTube reference links remain available inside an
+assignment without connecting a YouTube account.
 
-When upgrading from the older cloud-connection build, retired Drive and YouTube profile metadata is removed and the local workbook must be configured once.
+CSV files include stable assignment IDs, student and instrument ownership,
+assignment kind, goal, practice steps, and revision. Older five-column CSV
+files remain supported.
 
-Assignment CSV files now include `assignment_id`, so exporting and reimporting updates the same assignment instead of creating a duplicate. Older five-column CSV files remain supported.
+## Architecture and roadmap
+
+The audited baseline, migration behavior, architecture diagram, security
+boundary, and regression checklist are documented in
+[docs/LK_PRACTICE_BASELINE_AND_PHASE_B.md](docs/LK_PRACTICE_BASELINE_AND_PHASE_B.md).
+The completed universal practice-engine checkpoint is documented in
+[docs/LK_PRACTICE_PHASE_C.md](docs/LK_PRACTICE_PHASE_C.md).
+The completed local family-control and retention checkpoint is documented in
+[docs/LK_PRACTICE_PHASE_D_LOCAL_CONTROLS.md](docs/LK_PRACTICE_PHASE_D_LOCAL_CONTROLS.md).
+The ticket-by-ticket implementation boundary is tracked in
+[docs/LK_PRACTICE_PLAN_STATUS.md](docs/LK_PRACTICE_PLAN_STATUS.md).
 
 ## Build
 

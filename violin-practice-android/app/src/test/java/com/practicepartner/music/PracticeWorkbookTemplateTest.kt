@@ -92,8 +92,8 @@ class PracticeWorkbookTemplateTest {
 
         assertFalse(progress.rows.first().contains("Total Practice Seconds"))
         assertEquals(2, summary.rows.size)
-        assertEquals(125L, summary.rows[1][1])
-        assertEquals(3, summary.rows[1][4])
+        assertEquals(125L, summary.rows[1][3])
+        assertEquals(3, summary.rows[1][6])
     }
 
     @Test
@@ -151,5 +151,41 @@ class PracticeWorkbookTemplateTest {
         assertEquals(recordingFileName, practiceLog.rows[1].last())
         assertFalse(rendered.contains("content://private"))
         assertFalse(rendered.contains("/data/user/0"))
+    }
+
+    @Test
+    fun sessionSheetPreservesGoalVersionOutcomeAndReflection() {
+        val session = PracticeSession(
+            id = "session",
+            childProfileId = "student",
+            assignmentId = "assignment",
+            assignmentTitle = "Repertoire passage",
+            instrument = "Violin",
+            date = "2026-11-01",
+            mode = PracticeMode.PLAY_YOURSELF,
+            startedAtMillis = 1_798_000_000_000,
+            endedAtMillis = 1_798_000_300_000,
+            repetitionsCompleted = 0,
+            status = PracticeSessionStatus.COMPLETED,
+            assignmentRevision = 3,
+            assignmentType = AssignmentType.REPERTOIRE,
+            goalType = PracticeGoalType.TIME,
+            targetRepetitions = 1,
+            targetSeconds = 300,
+            elapsedSeconds = 300,
+            reflection = PracticeReflection.PROUD,
+        )
+
+        val sheet = PracticeWorkbookTemplate.sheets(
+            profile = StudentProfile(id = "student"),
+            snapshot = PracticeSnapshot(sessions = listOf(session)),
+            updatedAtMillis = 1_798_000_400_000,
+        ).single { it.name == "Practice Sessions" }
+
+        assertEquals(2, sheet.rows.size)
+        assertEquals("3", sheet.rows[1][5].toString())
+        assertEquals("TIME", sheet.rows[1][8])
+        assertEquals(300L, sheet.rows[1][14])
+        assertEquals("PROUD", sheet.rows[1][17])
     }
 }

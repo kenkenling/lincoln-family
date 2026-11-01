@@ -6,14 +6,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material3.AlertDialog
@@ -38,6 +42,7 @@ fun GrownUpToolsDialog(
     onOpenToday: () -> Unit,
     onOpenAssignments: () -> Unit,
     onOpenSummary: () -> Unit,
+    onManageProfiles: () -> Unit,
     onOpenProfile: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -56,7 +61,7 @@ fun GrownUpToolsDialog(
         title = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "Grown-up tools",
+                    "Parent Space",
                     style = MaterialTheme.typography.headlineSmall,
                     fontFamily = FontFamily.Cursive,
                     fontWeight = FontWeight.Bold,
@@ -70,6 +75,10 @@ fun GrownUpToolsDialog(
         },
         text = {
             Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 GrownUpToolButton(
@@ -95,6 +104,13 @@ fun GrownUpToolsDialog(
                     iconBackground = LavenderCloud,
                     selected = currentPage == AppPage.SUMMARY,
                     onClick = onOpenSummary,
+                )
+                GrownUpToolButton(
+                    title = "Family profiles",
+                    detail = "Add a child or switch the student you are planning for.",
+                    icon = Icons.Default.Groups,
+                    iconBackground = CloudBlue,
+                    onClick = onManageProfiles,
                 )
                 GrownUpToolButton(
                     title = "Profile & local file",

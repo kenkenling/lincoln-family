@@ -29,7 +29,10 @@ class CsvCodecTest {
             idFactory = { "imported-id" },
         )
 
-        assertTrue(CsvCodec.encode(listOf(original)).startsWith("assignment_id,date,title"))
+        assertTrue(
+            CsvCodec.encode(listOf(original))
+                .startsWith("assignment_id,student_id,instrument,date,title"),
+        )
         assertEquals(1, decoded.errors.size)
         assertTrue(decoded.errors.single().contains("sheet music"))
         assertEquals(1, decoded.tasks.size)
@@ -115,5 +118,85 @@ class CsvCodecTest {
 
         assertTrue(decoded.tasks.isEmpty())
         assertTrue(decoded.errors.single().contains("unclosed quoted field"))
+    }
+
+    @Test
+    fun optionalReferenceAndStudentOwnershipRoundTrip() {
+        val assignment = PracticeTask(
+            id = "piano-one",
+            childProfileId = "student-two",
+            instrument = "Piano",
+            assignedDate = "2026-11-01",
+            title = "C major scale",
+            source = "",
+            sourceType = SourceType.NONE,
+            startSeconds = 0,
+            endSeconds = null,
+            repetitions = 3,
+        )
+
+        val decoded = CsvCodec.decode(
+            text = CsvCodec.encode(listOf(assignment)),
+            defaultDate = "2026-11-01",
+            childProfileId = "student-two",
+            instrument = "Piano",
+        )
+
+        assertTrue(decoded.errors.isEmpty())
+        assertEquals(assignment, decoded.tasks.single())
+    }
+
+    @Test
+    fun rejectsRowsOwnedByAnotherStudent() {
+        val csv = """
+            assignment_id,student_id,instrument,date,title,reference_type,source,start_seconds,end_seconds,repetitions
+            other-task,other-child,Piano,2026-11-01,Scales,NONE,,0,,3
+        """.trimIndent()
+
+        val decoded = CsvCodec.decode(
+            text = csv,
+            defaultDate = "2026-11-01",
+            childProfileId = "current-child",
+            instrument = "Violin",
+        )
+
+        assertTrue(decoded.tasks.isEmpty())
+        assertTrue(decoded.errors.single().contains("another profile"))
+    }
+
+    @Test
+    fun timeGoalStepsAndRevisionRoundTrip() {
+        val assignment = PracticeTask(
+            id = "time-goal",
+            childProfileId = "student",
+            instrument = "Piano",
+            assignedDate = "2026-11-02",
+            title = "Repertoire passage",
+            source = "https://youtu.be/VZIWCt-jW6g",
+            sourceType = SourceType.YOUTUBE,
+            startSeconds = 10,
+            endSeconds = 40,
+            repetitions = 1,
+            assignmentType = AssignmentType.REPERTOIRE,
+            goalType = PracticeGoalType.TIME,
+            targetSeconds = 12 * 60,
+            enabledModes = linkedSetOf(
+                PracticeMode.LISTEN,
+                PracticeMode.LISTEN_AND_PLAY,
+                PracticeMode.PLAY_YOURSELF,
+            ),
+            revision = 4,
+            archivedAtMillis = 1_800_000_000_000,
+        )
+
+        val decoded = CsvCodec.decode(
+            text = CsvCodec.encode(listOf(assignment)),
+            defaultDate = assignment.assignedDate,
+            childProfileId = assignment.childProfileId,
+            instrument = assignment.instrument,
+        )
+
+        assertTrue(decoded.errors.isEmpty())
+        assertEquals(assignment, decoded.tasks.single())
     }
 }

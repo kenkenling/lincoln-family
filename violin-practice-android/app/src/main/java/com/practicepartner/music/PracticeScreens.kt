@@ -69,9 +69,13 @@ data class AssignmentForm(
     val start: String = "",
     val end: String = "",
     val repetitions: String = "3",
+    val targetMinutes: String = "10",
     val coachNote: String = "",
     val whyImportant: String = "",
     val sheetMusicUri: String? = null,
+    val assignmentType: AssignmentType = AssignmentType.TECHNIQUE,
+    val goalType: PracticeGoalType = PracticeGoalType.REPETITIONS,
+    val enabledModes: Set<PracticeMode> = setOf(PracticeMode.PLAY_YOURSELF),
 ) {
     companion object {
         fun fromTask(task: PracticeTask): AssignmentForm = AssignmentForm(
@@ -82,11 +86,26 @@ data class AssignmentForm(
             start = task.startSeconds.toString(),
             end = task.endSeconds?.toString().orEmpty(),
             repetitions = task.repetitions.toString(),
+            targetMinutes = (task.targetSeconds / 60).coerceAtLeast(1).toString(),
             coachNote = task.coachNote,
             whyImportant = task.whyImportant,
             sheetMusicUri = task.sheetMusicUri,
+            assignmentType = task.assignmentType,
+            goalType = task.goalType,
+            enabledModes = task.enabledModes,
         )
     }
+
+    fun applyTemplate(template: AssignmentTemplate): AssignmentForm = copy(
+        editingTaskId = null,
+        title = template.title,
+        repetitions = template.repetitions.toString(),
+        targetMinutes = (template.targetSeconds / 60).coerceAtLeast(1).toString(),
+        coachNote = template.coachNote,
+        assignmentType = template.assignmentType,
+        goalType = template.goalType,
+        enabledModes = template.enabledModes,
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -98,12 +117,15 @@ fun TodayPage(
     onPractice: (PracticeTask) -> Unit,
     onToggleCompleted: (PracticeTask) -> Unit,
 ) {
-    val progress = state.todayProgress
-    val completedCount = state.todayTasks.count { it.id in progress.completedTaskIds }
+    val completedCount = state.todayTasks.count { state.goalMet(it, state.currentDate) }
     val allComplete = state.todayTasks.isNotEmpty() &&
         completedCount == state.todayTasks.size
-    val nextTask = state.todayTasks.firstOrNull { it.id !in progress.completedTaskIds }
+    val nextTask = state.todayTasks.firstOrNull { !state.goalMet(it, state.currentDate) }
         ?: state.todayTasks.firstOrNull()
+    val availableModes = nextTask?.enabledModes.orEmpty()
+        .ifEmpty { PracticeMode.entries.toSet() }
+    val selectedMode = state.mode.takeIf(availableModes::contains)
+        ?: availableModes.first()
 
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
@@ -114,7 +136,7 @@ fun TodayPage(
                 studentName = studentName,
                 date = state.currentDate,
                 nextTask = nextTask,
-                selectedMode = state.mode,
+                selectedMode = selectedMode,
                 completedCount = completedCount,
                 totalCount = state.todayTasks.size,
                 allComplete = allComplete,
@@ -134,12 +156,16 @@ fun TodayPage(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text(
-                        "Pick your practice style",
+                        "Choose the next practice step",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                     )
                     Text(
-                        "You can change this before starting any music mission.",
+                        if (nextTask == null) {
+                            "Practice steps appear with the next music mission."
+                        } else {
+                            "These steps were selected for ${nextTask.title}."
+                        },
                         color = Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -147,9 +173,9 @@ fun TodayPage(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        PracticeMode.entries.forEach { option ->
+                        PracticeMode.entries.filter(availableModes::contains).forEach { option ->
                             FilterChip(
-                                selected = state.mode == option,
+                                selected = selectedMode == option,
                                 onClick = { onSelectMode(option) },
                                 leadingIcon = {
                                     Text(option.kidEmoji(), fontSize = 16.sp)
@@ -188,8 +214,7 @@ fun TodayPage(
         }
 
         itemsIndexed(state.todayTasks, key = { _, task -> task.id }) { index, task ->
-            val completedRepetitions = progress.repetitionsFor(task.id)
-            val completed = task.id in progress.completedTaskIds
+            val completed = state.goalMet(task, state.currentDate)
             val needsReference = task.sourceType == SourceType.LOCAL && task.source.isBlank()
             Card(
                 colors = CardDefaults.cardColors(
@@ -229,9 +254,8 @@ fun TodayPage(
                                 fontWeight = FontWeight.ExtraBold,
                             )
                             Text(
-                                "${timeLabel(task.startSeconds)}–" +
-                                    "${task.endSeconds?.let(::timeLabel) ?: "end"} · " +
-                                    "$completedRepetitions / ${task.repetitions} repetitions",
+                                "${task.assignmentType.label} · " +
+                                    state.progressLabel(task, state.currentDate),
                                 color = Muted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -250,6 +274,13 @@ fun TodayPage(
                             )
                         }
                     }
+                    Text(
+                        "Steps: " + PracticeMode.entries
+                            .filter(task.enabledModes::contains)
+                            .joinToString(" → ") { it.kidLabel() },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     if (needsReference) {
                         Text(
                             "Ask a grown-up to reattach this reference video before practice.",
@@ -392,13 +423,16 @@ private fun PracticeMode.kidLabel(): String = when (this) {
 
 private fun PracticeMode.kidEmoji(): String = when (this) {
     PracticeMode.LISTEN -> "👂"
-    PracticeMode.LISTEN_AND_PLAY -> "🎻"
+    PracticeMode.LISTEN_AND_PLAY -> "🎶"
     PracticeMode.PLAY_YOURSELF -> "⭐"
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AssignmentPage(
     state: PracticeUiState,
+    studentName: String,
+    instrument: String,
     form: AssignmentForm,
     onFormChanged: (AssignmentForm) -> Unit,
     onPickVideo: () -> Unit,
@@ -406,12 +440,16 @@ fun AssignmentPage(
     onImport: () -> Unit,
     onExport: () -> Unit,
     onAdd: () -> Unit,
+    onArchive: (PracticeTask) -> Unit,
+    onRestore: (PracticeTask) -> Unit,
     onRemove: (PracticeTask) -> Unit,
 ) {
     val context = LocalContext.current
     val selectedDate = runCatching { LocalDate.parse(form.assignedDate) }
         .getOrDefault(LocalDate.now())
     val assignmentsForDate = state.tasksForDate(form.assignedDate)
+    val archivedAssignmentsForDate = state.archivedTasksForDate(form.assignedDate)
+    val templates = assignmentTemplatesFor(instrument)
     var pendingRemoval by remember { mutableStateOf<PracticeTask?>(null) }
 
     fun showDatePicker() {
@@ -444,17 +482,36 @@ fun AssignmentPage(
                     ) {
                         Text(
                             if (form.editingTaskId == null) {
-                                "Build a practice plan"
+                                "Build $studentName’s practice plan"
                             } else {
-                                "Edit assignment"
+                                "Edit $studentName’s assignment"
                             },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "Assignment date: ${friendlyFullDate(form.assignedDate)}",
+                            "$instrument · ${friendlyFullDate(form.assignedDate)}",
                             color = Muted,
                         )
+                        Text(
+                            "Quick start",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            templates.forEach { template ->
+                                OutlinedButton(
+                                    onClick = {
+                                        onFormChanged(form.applyTemplate(template))
+                                    },
+                                ) {
+                                    Text(template.label)
+                                }
+                            }
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
                                 onClick = ::showDatePicker,
@@ -480,15 +537,104 @@ fun AssignmentPage(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        Text(
+                            "Assignment kind",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            AssignmentType.entries.forEach { option ->
+                                FilterChip(
+                                    selected = form.assignmentType == option,
+                                    onClick = {
+                                        onFormChanged(form.copy(assignmentType = option))
+                                    },
+                                    label = { Text(option.label) },
+                                )
+                            }
+                        }
+                        Text(
+                            "Practice goal",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PracticeGoalType.entries.forEach { option ->
+                                FilterChip(
+                                    selected = form.goalType == option,
+                                    onClick = { onFormChanged(form.copy(goalType = option)) },
+                                    label = { Text(option.label) },
+                                )
+                            }
+                        }
+                        if (form.goalType == PracticeGoalType.REPETITIONS) {
+                            OutlinedTextField(
+                                value = form.repetitions,
+                                onValueChange = {
+                                    onFormChanged(form.copy(repetitions = it))
+                                },
+                                label = { Text("Target repetitions (1–20)") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            OutlinedTextField(
+                                value = form.targetMinutes,
+                                onValueChange = {
+                                    onFormChanged(form.copy(targetMinutes = it))
+                                },
+                                label = { Text("Target practice minutes (1–60)") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                         OutlinedTextField(
                             value = form.source,
                             onValueChange = { onFormChanged(form.copy(source = it)) },
-                            label = { Text("YouTube link or selected device video") },
+                            label = { Text("Reference video link (optional)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedButton(onClick = onPickVideo, modifier = Modifier.fillMaxWidth()) {
-                            Text("Choose reference video from device")
+                            Text("Choose optional reference video from device")
+                        }
+                        Text(
+                            "Practice steps",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            "Choose the steps the student can use. Listen and Play Along require a reference video.",
+                            color = Muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            PracticeMode.entries.forEach { option ->
+                                FilterChip(
+                                    selected = option in form.enabledModes,
+                                    onClick = {
+                                        val next = if (option in form.enabledModes) {
+                                            form.enabledModes - option
+                                        } else {
+                                            form.enabledModes + option
+                                        }
+                                        onFormChanged(form.copy(enabledModes = next))
+                                    },
+                                    label = { Text(option.kidLabel()) },
+                                )
+                            }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
@@ -511,14 +657,6 @@ fun AssignmentPage(
                             )
                         }
                         OutlinedTextField(
-                            value = form.repetitions,
-                            onValueChange = { onFormChanged(form.copy(repetitions = it)) },
-                            label = { Text("Target repetitions (1–20)") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        OutlinedTextField(
                             value = form.coachNote,
                             onValueChange = { onFormChanged(form.copy(coachNote = it)) },
                             label = { Text("Coach focus") },
@@ -538,7 +676,7 @@ fun AssignmentPage(
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            "Attach a PDF or image for Lincoln to open during practice, or leave this blank.",
+                            "Attach a PDF or image for $studentName to open during practice, or leave this blank.",
                             color = Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -615,12 +753,30 @@ fun AssignmentPage(
                         Column(Modifier.weight(1f)) {
                             Text(task.title, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "${if (task.sourceType == SourceType.LOCAL) {
-                                    if (task.source.isBlank()) "Device video needs reattachment" else "Device video"
-                                } else {
-                                    "YouTube"
+                                "${when (task.sourceType) {
+                                    SourceType.NONE -> "No reference video"
+                                    SourceType.LOCAL ->
+                                        if (task.source.isBlank()) {
+                                            "Device video needs reattachment"
+                                        } else {
+                                            "Device video"
+                                        }
+                                    SourceType.YOUTUBE -> "YouTube"
                                 }} · " +
-                                    "${task.repetitions} repetitions",
+                                    "${task.assignmentType.label} · " +
+                                    when (task.goalType) {
+                                        PracticeGoalType.REPETITIONS ->
+                                            "${task.repetitions} repetitions"
+                                        PracticeGoalType.TIME ->
+                                            formatGoalDuration(task.targetSeconds.toLong())
+                                    },
+                                color = Muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Text(
+                                PracticeMode.entries
+                                    .filter(task.enabledModes::contains)
+                                    .joinToString(" → ") { it.kidLabel() },
                                 color = Muted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -633,8 +789,53 @@ fun AssignmentPage(
                             ) {
                                 Text("Edit")
                             }
+                            TextButton(onClick = { onArchive(task) }) {
+                                Text("Archive")
+                            }
                             TextButton(onClick = { pendingRemoval = task }) {
                                 Text("Remove", color = Danger)
+                            }
+                        }
+                    }
+                }
+            }
+            if (archivedAssignmentsForDate.isNotEmpty()) {
+                item {
+                    Text(
+                        "Archived · ${archivedAssignmentsForDate.size}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                items(
+                    archivedAssignmentsForDate,
+                    key = { "archived-assignment-${it.id}" },
+                ) { task ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = CloudWhite.copy(alpha = 0.72f),
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(15.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(task.title, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Hidden from Today · history preserved · version ${task.revision}",
+                                    color = Muted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                TextButton(onClick = { onRestore(task) }) {
+                                    Text("Restore")
+                                }
+                                TextButton(onClick = { pendingRemoval = task }) {
+                                    Text("Remove", color = Danger)
+                                }
                             }
                         }
                     }
@@ -666,7 +867,7 @@ fun AssignmentPage(
                     )
                 }
                 Text(
-                    "Saves for ${friendlyFullDate(form.assignedDate)}. Sheet music is optional.",
+                    "Saves for ${friendlyFullDate(form.assignedDate)}. Reference video and sheet music are optional.",
                     color = Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -726,13 +927,11 @@ fun PracticeSessionPage(
     onCompleteRepetition: () -> Unit,
     onResumeTimer: () -> Unit,
     onOpenUri: (Uri, String) -> Unit,
-    onShare: (Uri, String?) -> Unit,
-    onDeleteRecording: (RecordingFile) -> Boolean,
     onFinish: () -> Unit,
 ) {
     var savedTake by remember(task.id) { mutableStateOf<RecordingFile?>(null) }
-    var pendingDelete by remember(task.id) { mutableStateOf<RecordingFile?>(null) }
     val completedRepetitions = state.todayProgress.repetitionsFor(task.id)
+    val goalMet = state.goalMet(task, state.currentDate)
     val sheetMusicUri = task.sheetMusicUri
     val nextTakeNumber = nextRecordingTakeNumber(
         events = state.todayEvents,
@@ -766,15 +965,22 @@ fun PracticeSessionPage(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "${state.mode.label} · ${timeLabel(task.startSeconds)}–" +
-                            "${task.endSeconds?.let(::timeLabel) ?: "end"}",
+                        "${task.assignmentType.label} · ${state.mode.label}",
                         color = Paper.copy(alpha = 0.82f),
                     )
                     Text(
-                        "$completedRepetitions of ${task.repetitions} repetitions · " +
-                            "${formatDuration(state.elapsedSeconds)} today",
+                        state.progressLabel(task, state.currentDate) + " · " +
+                            "${formatDuration(state.activeSessionElapsedSeconds)} this session",
                         color = Paper.copy(alpha = 0.82f),
                     )
+                    if (task.sourceType != SourceType.NONE) {
+                        Text(
+                            "Reference clip ${timeLabel(task.startSeconds)}–" +
+                                "${task.endSeconds?.let(::timeLabel) ?: "end"}",
+                            color = Paper.copy(alpha = 0.76f),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
         }
@@ -791,7 +997,7 @@ fun PracticeSessionPage(
                     ) {
                         Text("Practice timer paused", fontWeight = FontWeight.Bold)
                         Text(
-                            "The timer pauses when Practice Partner leaves the screen.",
+                            "The timer pauses when LK Practice leaves the screen.",
                             color = Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -837,7 +1043,7 @@ fun PracticeSessionPage(
             }
         }
 
-        if (state.mode != PracticeMode.PLAY_YOURSELF) {
+        if (state.mode != PracticeMode.PLAY_YOURSELF && task.sourceType != SourceType.NONE) {
             item {
                 Text(
                     "TEACHER REFERENCE",
@@ -868,20 +1074,41 @@ fun PracticeSessionPage(
             }
         }
 
-        item {
-            Button(
-                onClick = onCompleteRepetition,
-                enabled = completedRepetitions < task.repetitions && !state.recordingActive,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Forest),
-            ) {
-                Text(
-                    if (completedRepetitions >= task.repetitions) {
-                        "All repetitions complete"
-                    } else {
-                        "Complete repetition ${completedRepetitions + 1}"
-                    },
-                )
+        if (task.goalType == PracticeGoalType.REPETITIONS) {
+            item {
+                Button(
+                    onClick = onCompleteRepetition,
+                    enabled = completedRepetitions < task.repetitions && !state.recordingActive,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Forest),
+                ) {
+                    Text(
+                        if (completedRepetitions >= task.repetitions) {
+                            "All repetitions complete"
+                        } else {
+                            "Complete repetition ${completedRepetitions + 1}"
+                        },
+                    )
+                }
+            }
+        } else {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (goalMet) MintCloud else CloudBlue,
+                    ),
+                    shape = RoundedCornerShape(18.dp),
+                ) {
+                    Text(
+                        if (goalMet) {
+                            "Time goal reached. Nice focused work!"
+                        } else {
+                            "Keep practicing—the timer is tracking this mission."
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
 
@@ -901,7 +1128,7 @@ fun PracticeSessionPage(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "It stays inside Practice Partner until you explicitly share it.",
+                            "It stays private. A grown-up can watch, share, or delete it from Practice Summary.",
                             color = Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -911,28 +1138,11 @@ fun PracticeSessionPage(
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = { onOpenUri(recording.uri.toUri(), "video/mp4") },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("Watch")
-                            }
-                            Button(
-                                onClick = {
-                                    onShare(recording.uri.toUri(), recording.fileName)
-                                },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("Share…")
-                            }
-                        }
-                        TextButton(
-                            onClick = {
-                                pendingDelete = recording
-                            },
+                        OutlinedButton(
+                            onClick = { onOpenUri(recording.uri.toUri(), "video/mp4") },
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Delete take", color = Danger)
+                            Text("Watch this take")
                         }
                     }
                 }
@@ -945,37 +1155,64 @@ fun PracticeSessionPage(
                 enabled = !state.recordingActive,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (state.recordingActive) "Stop recording before finishing" else "Finish practice")
+                Text(
+                    when {
+                        state.recordingActive -> "Stop recording before finishing"
+                        goalMet -> "Finish and reflect"
+                        else -> "Finish for now"
+                    },
+                )
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
     }
 
-    pendingDelete?.let { recording ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete this take?") },
-            text = { Text("The video and its practice-log entry will be permanently removed.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (onDeleteRecording(recording)) {
-                            savedTake = null
-                            pendingDelete = null
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Danger),
-                ) {
-                    Text("Delete")
+}
+
+@Composable
+fun PracticeReflectionDialog(
+    session: PracticeSession,
+    onSubmit: (PracticeReflection?) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = { onSubmit(null) },
+        title = { Text("How did that practice feel?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    session.assignmentTitle,
+                    color = Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                PracticeReflection.entries.forEach { reflection ->
+                    OutlinedButton(
+                        onClick = { onSubmit(reflection) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            when (reflection) {
+                                PracticeReflection.PROUD -> "😊  ${reflection.kidLabel}"
+                                PracticeReflection.MAKING_PROGRESS ->
+                                    "🙂  ${reflection.kidLabel}"
+                                PracticeReflection.NEED_HELP -> "🤔  ${reflection.kidLabel}"
+                            },
+                        )
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) {
-                    Text("Cancel")
-                }
-            },
-        )
-    }
+                Text(
+                    "There is no score. This just helps a grown-up know what support would be useful.",
+                    color = Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = { onSubmit(null) }) {
+                Text("Skip")
+            }
+        },
+    )
 }
 
 @Composable
@@ -991,8 +1228,10 @@ fun SummaryPage(
     val progress = state.summaryProgress
     val tasks = state.summaryTasks
     val events = state.summaryEvents
+    val sessions = state.summarySessions
+    val weekly = state.weeklySummary(state.summaryDate)
     val taskIds = tasks.mapTo(mutableSetOf()) { it.id }
-    val completedCount = progress.completedTaskIds.count { it in taskIds }
+    val completedCount = tasks.count { state.goalMet(it, state.summaryDate) }
     val canGoPrevious = state.historyDates.any { it < state.summaryDate }
     val canGoNext = state.historyDates.any { it > state.summaryDate }
     val displayElapsed = if (state.summaryDate == state.currentDate) {
@@ -1070,6 +1309,73 @@ fun SummaryPage(
         }
 
         item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CloudWhite),
+                shape = RoundedCornerShape(20.dp),
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        "This week",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        weekly.days.forEach { day ->
+                            val date = LocalDate.parse(day.date)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    date.format(DateTimeFormatter.ofPattern("E")).take(1),
+                                    color = Muted,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                                Surface(
+                                    color = if (day.practiced) SunYellow else CloudBlue,
+                                    shape = CircleShape,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                ) {
+                                    Box(
+                                        Modifier.size(34.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            date.dayOfMonth.toString(),
+                                            color = Ink,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Text(
+                        "${weekly.practicedDays} practice " +
+                            (
+                                if (weekly.practicedDays == 1) {
+                                    "day"
+                                } else {
+                                    "days"
+                                }
+                                ) +
+                            " · ${formatDuration(weekly.totalSeconds)} total",
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        "A gentle pattern, not a streak—rest days are okay.",
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+
+        item {
             Text("Assignment progress", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         if (tasks.isEmpty()) {
@@ -1089,13 +1395,74 @@ fun SummaryPage(
                     Column(Modifier.weight(1f)) {
                         Text(task.title, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "${progress.repetitionsFor(task.id)} / ${task.repetitions} repetitions",
+                            "${task.assignmentType.label} · " +
+                                state.progressLabel(task, state.summaryDate),
                             color = Muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        if (task.archivedAtMillis != null) {
+                            Text(
+                                "Archived from Today",
+                                color = Muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
-                    if (task.id in progress.completedTaskIds) {
+                    if (state.goalMet(task, state.summaryDate)) {
                         Icon(Icons.Default.CheckCircle, "Completed", tint = Forest)
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                "Practice sessions",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        if (sessions.isEmpty()) {
+            item {
+                EmptyCard(
+                    "No sessions for this date",
+                    "Each started mission will keep its own time, goal, outcome, and reflection.",
+                )
+            }
+        }
+        items(sessions.reversed(), key = { "session-${it.id}" }) { session ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Paper),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(15.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Text(session.assignmentTitle, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "${session.assignmentType.label} · ${session.mode.kidLabel()} · " +
+                            formatDuration(session.elapsedSeconds),
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        "${session.status.summaryLabel()} · assignment version " +
+                            session.assignmentRevision,
+                        color = if (session.status == PracticeSessionStatus.COMPLETED) {
+                            Forest
+                        } else {
+                            Muted
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    session.reflection?.let { reflection ->
+                        Text(
+                            "Reflection: ${reflection.summaryLabel}",
+                            color = DeepSky,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 }
             }
@@ -1211,6 +1578,13 @@ fun formatDuration(seconds: Long): String {
     } else {
         "%d:%02d".format(minutes, remainingSeconds)
     }
+}
+
+private fun PracticeSessionStatus.summaryLabel(): String = when (this) {
+    PracticeSessionStatus.ACTIVE -> "In progress"
+    PracticeSessionStatus.COMPLETED -> "Goal reached"
+    PracticeSessionStatus.ENDED -> "Finished for now"
+    PracticeSessionStatus.INTERRUPTED -> "Interrupted safely"
 }
 
 private fun timeLabel(seconds: Int): String = "%d:%02d".format(seconds / 60, seconds % 60)

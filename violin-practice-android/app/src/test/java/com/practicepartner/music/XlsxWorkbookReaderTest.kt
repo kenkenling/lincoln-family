@@ -55,6 +55,8 @@ class XlsxWorkbookReaderTest {
         val bytes = workbookBytesWithAssignmentRow(
             listOf(
                 "",
+                "profile",
+                "Violin",
                 "2026-11-01",
                 "Tremolo",
                 "YOUTUBE",
@@ -87,6 +89,8 @@ class XlsxWorkbookReaderTest {
         val bytes = workbookBytesWithAssignmentRow(
             listOf(
                 "assignment-id",
+                "profile",
+                "Violin",
                 excelSerial,
                 "Tremolo",
                 "YOUTUBE",
@@ -112,6 +116,8 @@ class XlsxWorkbookReaderTest {
         val validBytes = workbookBytesWithAssignmentRow(
             listOf(
                 "assignment-id",
+                "profile",
+                "Violin",
                 "2026-11-01",
                 "Tremolo",
                 "YOUTUBE",
@@ -153,6 +159,52 @@ class XlsxWorkbookReaderTest {
                 ByteArrayInputStream(invalidOutput.toByteArray()),
             ),
         )
+    }
+
+    @Test
+    fun readsTimeGoalAndPracticeStepsFromCurrentTemplate() {
+        val task = PracticeTask(
+            id = "time",
+            childProfileId = "profile",
+            instrument = "Violin",
+            assignedDate = "2026-11-01",
+            title = "Boreas passage",
+            source = "https://youtu.be/VZIWCt-jW6g",
+            sourceType = SourceType.YOUTUBE,
+            startSeconds = 5,
+            endSeconds = 35,
+            repetitions = 1,
+            assignmentType = AssignmentType.REPERTOIRE,
+            goalType = PracticeGoalType.TIME,
+            targetSeconds = 8 * 60,
+            enabledModes = setOf(
+                PracticeMode.LISTEN_AND_PLAY,
+                PracticeMode.PLAY_YOURSELF,
+            ),
+            revision = 2,
+            archivedAtMillis = 1_800_000_000_000,
+        )
+        val output = ByteArrayOutputStream()
+        XlsxWorkbookWriter.write(
+            output,
+            PracticeWorkbookTemplate.sheets(
+                profile = StudentProfile(id = "profile"),
+                snapshot = PracticeSnapshot(tasks = listOf(task)),
+                updatedAtMillis = 1_798_000_000_000,
+            ),
+        )
+
+        val result = XlsxWorkbookReader.readAssignments(
+            ByteArrayInputStream(output.toByteArray()),
+        )
+
+        assertTrue(result.errors.isEmpty())
+        val imported = result.assignments.single()
+        assertEquals(PracticeGoalType.TIME, imported.goalType)
+        assertEquals(8 * 60, imported.targetSeconds)
+        assertEquals(task.enabledModes, imported.enabledModes)
+        assertEquals(2, imported.revision)
+        assertEquals(task.archivedAtMillis, imported.archivedAtMillis)
     }
 
     private fun workbookBytesWithAssignmentRow(row: List<Any>): ByteArray {
