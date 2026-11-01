@@ -3,16 +3,14 @@ package com.practicepartner.music
 import android.content.Context
 import android.util.Base64
 import androidx.core.content.edit
-import org.json.JSONArray
-import org.json.JSONObject
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.UUID
 
-class FamilyStore(context: Context) : WorkbookSyncSettings {
+class FamilyStore(context: Context) : FamilyDataStore {
     private val prefs = context.getSharedPreferences("practice_partner_v2", Context.MODE_PRIVATE)
 
-    fun loadHousehold(): Household {
+    override fun loadHousehold(): Household {
         migrateRetiredConnections()
         prefs.getString(HOUSEHOLD_KEY, null)
             ?.let(::decodeHousehold)
@@ -43,12 +41,12 @@ class FamilyStore(context: Context) : WorkbookSyncSettings {
         return household
     }
 
-    fun saveHousehold(household: Household) {
+    override fun saveHousehold(household: Household) {
         val normalized = normalize(household)
         val active = normalized.activeChildProfile
             ?: error("A household must contain an active child profile.")
         prefs.edit(commit = true) {
-            putString(HOUSEHOLD_KEY, encodeHousehold(normalized).toString())
+            putString(HOUSEHOLD_KEY, HouseholdJsonCodec.encode(normalized))
 
             // Keep the previous single-profile keys current so an older app build can still
             // open the active child after a rollback.
@@ -76,7 +74,7 @@ class FamilyStore(context: Context) : WorkbookSyncSettings {
         return updated
     }
 
-    fun addChildProfile(profile: ChildProfile): Household {
+    override fun addChildProfile(profile: ChildProfile): Household {
         val household = loadHousehold()
         require(household.childProfiles.none { it.id == profile.id }) {
             "A child profile with this ID already exists."
@@ -88,7 +86,7 @@ class FamilyStore(context: Context) : WorkbookSyncSettings {
         return updated
     }
 
-    fun setActiveChildProfile(childProfileId: String): Household {
+    override fun setActiveChildProfile(childProfileId: String): Household {
         val household = loadHousehold()
         require(household.childProfiles.any { it.id == childProfileId }) {
             "The selected child profile does not exist."
@@ -98,7 +96,7 @@ class FamilyStore(context: Context) : WorkbookSyncSettings {
         return updated
     }
 
-    fun removeChildProfile(childProfileId: String): Household {
+    override fun removeChildProfile(childProfileId: String): Household {
         val household = loadHousehold()
         require(household.childProfiles.size > 1) {
             "The household must keep at least one child profile."
@@ -156,11 +154,11 @@ class FamilyStore(context: Context) : WorkbookSyncSettings {
         }
     }
 
-    fun hasAdultPin(): Boolean =
+    override fun hasAdultPin(): Boolean =
         !prefs.getString(ADULT_PIN_SALT_KEY, null).isNullOrBlank() &&
             !prefs.getString(ADULT_PIN_HASH_KEY, null).isNullOrBlank()
 
-    fun setAdultPin(pin: String): Boolean {
+    override fun setAdultPin(pin: String): Boolean {
         if (!isValidAdultPin(pin)) return false
         val salt = ByteArray(16).also(SecureRandom()::nextBytes)
         val hash = adultPinHash(salt, pin)
@@ -171,7 +169,7 @@ class FamilyStore(context: Context) : WorkbookSyncSettings {
         return true
     }
 
-    fun verifyAdultPin(pin: String): Boolean {
+    override fun verifyAdultPin(pin: String): Boolean {
         if (!isValidAdultPin(pin)) return false
         val salt = prefs.getString(ADULT_PIN_SALT_KEY, null)
             ?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
@@ -213,49 +211,8 @@ class FamilyStore(context: Context) : WorkbookSyncSettings {
         }
     }
 
-    private fun encodeHousehold(household: Household): JSONObject = JSONObject().apply {
-        put("version", 1)
-        put("id", household.id)
-        put("name", household.name)
-        put("activeChildProfileId", household.activeChildProfileId)
-        put("childProfiles", JSONArray().apply {
-            household.childProfiles.forEach { profile ->
-                put(JSONObject().apply {
-                    put("id", profile.id)
-                    put("name", profile.name)
-                    put("instrument", profile.instrument)
-                    put("excelWorkbookUri", profile.excelWorkbookUri ?: JSONObject.NULL)
-                    put("excelWorkbookName", profile.excelWorkbookName ?: JSONObject.NULL)
-                })
-            }
-        })
-    }
-
-    private fun decodeHousehold(value: String): Household? = runCatching {
-        val root = JSONObject(value)
-        val rows = root.getJSONArray("childProfiles")
-        val profiles = (0 until rows.length()).mapNotNull { index ->
-            runCatching {
-                val row = rows.getJSONObject(index)
-                ChildProfile(
-                    id = row.getString("id").trim().also { require(it.isNotBlank()) },
-                    name = row.getString("name").trim().also { require(it.isNotBlank()) },
-                    instrument = row.getString("instrument").trim().ifBlank { "Instrument" },
-                    excelWorkbookUri = row.optNullableString("excelWorkbookUri"),
-                    excelWorkbookName = row.optNullableString("excelWorkbookName"),
-                )
-            }.getOrNull()
-        }.distinctBy(ChildProfile::id)
-        require(profiles.isNotEmpty())
-        normalize(
-            Household(
-                id = root.optString("id").ifBlank { UUID.randomUUID().toString() },
-                name = root.optString("name").ifBlank { "Our Family" },
-                childProfiles = profiles,
-                activeChildProfileId = root.optString("activeChildProfileId"),
-            ),
-        )
-    }.getOrNull()
+    private fun decodeHousehold(value: String): Household? =
+        HouseholdJsonCodec.decode(value)?.let(::normalize)
 
     private fun normalize(household: Household): Household {
         require(household.childProfiles.isNotEmpty()) {

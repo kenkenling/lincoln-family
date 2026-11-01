@@ -66,6 +66,7 @@ fun TodayPage(
         item {
             TodaySkyHero(
                 studentName = studentName,
+                daysSinceLastPractice = state.daysSinceLastPractice,
                 date = state.currentDate,
                 nextTask = nextTask,
                 selectedMode = selectedMode,
@@ -247,6 +248,7 @@ fun TodayPage(
 @Composable
 private fun TodaySkyHero(
     studentName: String,
+    daysSinceLastPractice: Int,
     date: String,
     nextTask: PracticeTask?,
     selectedMode: PracticeMode,
@@ -255,7 +257,6 @@ private fun TodaySkyHero(
     allComplete: Boolean,
     onStart: () -> Unit,
 ) {
-    val firstName = studentName.trim().substringBefore(' ').ifBlank { "Musician" }
     Box(
         Modifier
             .fillMaxWidth()
@@ -284,7 +285,7 @@ private fun TodaySkyHero(
             verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Text(
-                "Hi, $firstName!",
+                todayWelcomeGreeting(studentName, daysSinceLastPractice),
                 color = Paper,
                 style = MaterialTheme.typography.headlineMedium,
                 fontFamily = FontFamily.Cursive,
@@ -344,6 +345,19 @@ private fun TodaySkyHero(
                 }
             }
         }
+    }
+}
+
+internal fun todayWelcomeGreeting(
+    studentName: String,
+    daysSinceLastPractice: Int,
+): String {
+    val firstName = studentName.trim().substringBefore(' ').ifBlank { "Musician" }
+    return when (daysSinceLastPractice.coerceAtLeast(0)) {
+        0 -> "Hi, $firstName!"
+        1 -> "Welcome back, $firstName!"
+        in 2..6 -> "Welcome back! Let's pick up where you left off."
+        else -> "It's great to see you again! Ready for some music?"
     }
 }
 

@@ -16,6 +16,17 @@ data class PracticeTimerReading(
 
 fun interface PracticeTimerTicker {
     fun start(scope: CoroutineScope, onTick: () -> Unit): Job
+
+    companion object {
+        val Default = PracticeTimerTicker { tickerScope, tick ->
+            tickerScope.launch {
+                while (isActive) {
+                    tick()
+                    delay(1_000)
+                }
+            }
+        }
+    }
 }
 
 class PracticeTimerManager(
@@ -27,14 +38,7 @@ class PracticeTimerManager(
     private val activeSessionIdProvider: () -> String?,
     private val updateSnapshot: ((PracticeSnapshot) -> PracticeSnapshot) -> Unit,
     private val onTick: (PracticeTimerReading) -> Unit,
-    private val ticker: PracticeTimerTicker = PracticeTimerTicker { tickerScope, tick ->
-        tickerScope.launch {
-            while (isActive) {
-                tick()
-                delay(1_000)
-            }
-        }
-    },
+    private val ticker: PracticeTimerTicker = PracticeTimerTicker.Default,
 ) {
     private val _elapsed = MutableStateFlow(PracticeTimerReading())
     val elapsed: StateFlow<PracticeTimerReading> = _elapsed.asStateFlow()

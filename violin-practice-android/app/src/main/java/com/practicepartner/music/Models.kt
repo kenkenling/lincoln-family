@@ -1,9 +1,11 @@
 package com.practicepartner.music
 
+import kotlinx.serialization.Serializable
 import java.net.URI
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 enum class AppPage {
     TODAY,
@@ -44,6 +46,7 @@ enum class SourceType {
     LOCAL,
 }
 
+@Serializable
 data class Household(
     val id: String,
     val name: String = "Our Family",
@@ -55,6 +58,7 @@ data class Household(
             ?: childProfiles.firstOrNull()
 }
 
+@Serializable
 data class ChildProfile(
     val id: String,
     val name: String = "Student",
@@ -82,6 +86,7 @@ data class LocalFileUiState(
     val detail: String = "",
 )
 
+@Serializable
 data class Assignment(
     val id: String,
     val assignedDate: String,
@@ -106,6 +111,7 @@ data class Assignment(
 
 typealias PracticeTask = Assignment
 
+@Serializable
 data class DailyProgress(
     val date: String,
     val childProfileId: String = "",
@@ -155,6 +161,7 @@ data class DailyProgress(
     )
 }
 
+@Serializable
 data class PracticeEvent(
     val id: String,
     val date: String,
@@ -176,6 +183,7 @@ enum class PracticeSessionStatus {
     INTERRUPTED,
 }
 
+@Serializable
 data class PracticeSession(
     val id: String,
     val childProfileId: String,
@@ -197,6 +205,7 @@ data class PracticeSession(
     val reflection: PracticeReflection? = null,
 )
 
+@Serializable
 data class PracticeSnapshot(
     val tasks: List<PracticeTask> = emptyList(),
     val progressByDate: Map<String, DailyProgress> = emptyMap(),
@@ -241,6 +250,9 @@ data class PracticeUiState(
 
     val todaySessions: List<PracticeSession> =
         snapshot.sessions.filter { it.date == currentDate }
+
+    val daysSinceLastPractice: Int =
+        calculateDaysSinceLastPractice(snapshot, currentDate)
 
     val summaryTasks: List<PracticeTask> =
         snapshot.tasks.filter { it.assignedDate == summaryDate }
@@ -344,6 +356,38 @@ data class PracticeUiState(
         )
     }
 }
+
+internal fun calculateDaysSinceLastPractice(
+    snapshot: PracticeSnapshot,
+    currentDate: String,
+): Int {
+    val today = runCatching { LocalDate.parse(currentDate) }.getOrNull() ?: return 0
+    val practiceDates = buildList {
+        snapshot.sessions.mapNotNullTo(this) { session ->
+            runCatching { LocalDate.parse(session.date) }.getOrNull()
+        }
+        snapshot.progressByDate.values
+            .asSequence()
+            .filter(DailyProgress::hasPracticeActivity)
+            .mapNotNullTo(this) { progress ->
+                runCatching { LocalDate.parse(progress.date) }.getOrNull()
+            }
+    }
+    val lastPracticeDate = practiceDates
+        .asSequence()
+        .filterNot { it.isAfter(today) }
+        .maxOrNull()
+        ?: return 0
+    return ChronoUnit.DAYS.between(lastPracticeDate, today)
+        .coerceAtLeast(0L)
+        .coerceAtMost(Int.MAX_VALUE.toLong())
+        .toInt()
+}
+
+private fun DailyProgress.hasPracticeActivity(): Boolean =
+    elapsedSeconds > 0L ||
+        completedTaskIds.isNotEmpty() ||
+        repetitionsByTask.values.any { it > 0 }
 
 data class WeeklyPracticeDay(
     val date: String,

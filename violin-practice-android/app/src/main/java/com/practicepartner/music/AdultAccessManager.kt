@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 internal class AdultAccessManager(
-    private val familyStore: FamilyStore,
+    private val familyStore: FamilyDataStore,
     private val setMessage: (String) -> Unit,
 ) {
     var pinConfigured by mutableStateOf(familyStore.hasAdultPin())

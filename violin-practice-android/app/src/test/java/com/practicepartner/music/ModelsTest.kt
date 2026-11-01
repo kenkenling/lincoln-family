@@ -314,6 +314,68 @@ class ModelsTest {
     }
 
     @Test
+    fun daysSinceLastPracticeUsesLatestRealActivityWithoutFutureDates() {
+        fun session(id: String, date: String) = PracticeSession(
+            id = id,
+            childProfileId = "student",
+            assignmentId = "assignment",
+            assignmentTitle = "Scales",
+            instrument = "Violin",
+            date = date,
+            mode = PracticeMode.PLAY_YOURSELF,
+            startedAtMillis = 1L,
+        )
+
+        fun days(snapshot: PracticeSnapshot) = PracticeUiState(
+            snapshot = snapshot,
+            activeChildProfileId = "student",
+            currentDate = "2026-11-01",
+        ).daysSinceLastPractice
+
+        assertEquals(0, days(PracticeSnapshot()))
+        assertEquals(
+            0,
+            days(PracticeSnapshot(sessions = listOf(session("today", "2026-11-01")))),
+        )
+        assertEquals(
+            1,
+            days(PracticeSnapshot(sessions = listOf(session("yesterday", "2026-10-31")))),
+        )
+        assertEquals(
+            2,
+            days(
+                PracticeSnapshot(
+                    progressByDate = mapOf(
+                        "2026-10-30" to DailyProgress(
+                            date = "2026-10-30",
+                            elapsedSeconds = 60L,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        assertEquals(
+            6,
+            days(PracticeSnapshot(sessions = listOf(session("six-days", "2026-10-26")))),
+        )
+        assertEquals(
+            7,
+            days(
+                PracticeSnapshot(
+                    progressByDate = mapOf(
+                        "2026-11-01" to DailyProgress(date = "2026-11-01"),
+                        "2026-10-25" to DailyProgress(
+                            date = "2026-10-25",
+                            repetitionsByTask = mapOf("assignment" to 1),
+                        ),
+                    ),
+                    sessions = listOf(session("future", "2026-11-02")),
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun dateSpecificCollectionsAreCachedUntilStateIsCopied() {
         val today = "2026-11-01"
         val earlier = "2026-10-31"

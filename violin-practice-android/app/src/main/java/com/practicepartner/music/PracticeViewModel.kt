@@ -7,17 +7,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
 class PracticeViewModel(
     private val appContext: Context,
-    private val store: PracticeStore,
-    private val familyStore: FamilyStore,
-    private val localWorkbookStore: LocalWorkbookStore,
+    private val store: PracticeDataStore,
+    private val familyStore: FamilyDataStore,
+    private val localWorkbookStore: WorkbookStorage,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
     private val wallClock: () -> Long = System::currentTimeMillis,
+    private val dateProvider: () -> String = ::currentDateKey,
+    private val recordingManager: RecordingManager = RecordingManager.from(appContext),
+    coroutineScope: CoroutineScope? = null,
+    timerTicker: PracticeTimerTicker = PracticeTimerTicker.Default,
 ) : ViewModel() {
-    private val initialDate = currentDateKey()
+    private val managerScope = coroutineScope ?: viewModelScope
+    private val initialDate = dateProvider()
     private val initialHousehold = familyStore.loadHousehold()
     private val initialProfile = initialHousehold.activeChildProfile
         ?: error("Create a child profile before opening practice.")
@@ -41,11 +47,10 @@ class PracticeViewModel(
     )
         private set
 
-    private val recordingManager = RecordingManager.from(appContext)
     private val adultAccessManager = AdultAccessManager(familyStore, ::setMessage)
     private val profileDataManager = ProfileDataManager(
         appContext = appContext,
-        scope = viewModelScope,
+        scope = managerScope,
         store = store,
         familyStore = familyStore,
         recordingManager = recordingManager,
@@ -53,7 +58,7 @@ class PracticeViewModel(
         setMessage = ::setMessage,
     )
     private val timerManager = PracticeTimerManager(
-        scope = viewModelScope,
+        scope = managerScope,
         elapsedRealtime = elapsedRealtime,
         profileProvider = { studentProfile },
         dateProvider = { uiState.currentDate },
@@ -68,9 +73,10 @@ class PracticeViewModel(
                 activeSessionElapsedSeconds = reading.sessionElapsedSeconds,
             )
         },
+        ticker = timerTicker,
     )
     private val workbookSyncManager = WorkbookSyncManager(
-        scope = viewModelScope,
+        scope = managerScope,
         workbookStore = localWorkbookStore,
         settings = familyStore,
         wallClock = wallClock,
@@ -184,10 +190,10 @@ class PracticeViewModel(
         workbookSyncManager.close()
         household = familyStore.setActiveChildProfile(profile.id)
         studentProfile = profile
-        val load = store.loadWithStatus(profile, currentDateKey())
+        val date = dateProvider()
+        val load = store.loadWithStatus(profile, date)
         val snapshot = interruptOpenSessions(load.snapshot, wallClock())
         if (snapshot != load.snapshot) store.save(profile, snapshot)
-        val date = currentDateKey()
         val elapsedSeconds = snapshot.progressByDate[date]?.elapsedSeconds ?: 0L
         timerManager.reset(elapsedSeconds)
         uiState = PracticeUiState(
@@ -358,7 +364,7 @@ class PracticeViewModel(
     }
 
     fun refreshDate() {
-        val today = currentDateKey()
+        val today = dateProvider()
         if (today == uiState.currentDate) return
         val wasShowingToday = uiState.summaryDate == uiState.currentDate
         pauseTimer(logEvent = false)

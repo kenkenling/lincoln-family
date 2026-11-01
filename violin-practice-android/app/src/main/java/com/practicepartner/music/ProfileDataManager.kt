@@ -11,8 +11,8 @@ import java.util.UUID
 internal class ProfileDataManager(
     private val appContext: Context,
     private val scope: CoroutineScope,
-    private val store: PracticeStore,
-    private val familyStore: FamilyStore,
+    private val store: PracticeDataStore,
+    private val familyStore: FamilyDataStore,
     private val recordingManager: RecordingManager,
     private val wallClock: () -> Long,
     private val setMessage: (String) -> Unit,
