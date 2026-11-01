@@ -39,6 +39,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.DayOfWeek
+import java.time.LocalDate
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -58,6 +60,7 @@ fun TodayPage(
         .ifEmpty { PracticeMode.entries.toSet() }
     val selectedMode = state.mode.takeIf(availableModes::contains)
         ?: availableModes.first()
+    val weekly = state.weeklySummary(state.currentDate)
 
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
@@ -75,6 +78,10 @@ fun TodayPage(
                 allComplete = allComplete,
                 onStart = { nextTask?.let(onPractice) },
             )
+        }
+
+        item {
+            WeeklyDotsRow(weekly)
         }
 
         item {
@@ -244,6 +251,84 @@ fun TodayPage(
         item { Spacer(Modifier.height(8.dp)) }
     }
 }
+
+@Composable
+internal fun WeeklyDotsRow(weekly: WeeklyPracticeSummary) {
+    val dots = weeklyDotItems(weekly)
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = CloudWhite.copy(alpha = 0.88f),
+        ),
+        shape = RoundedCornerShape(24.dp),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Text(
+                "Your practice week",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                dots.forEach { dot ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            dot.dayLabel,
+                            color = Muted,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        Surface(
+                            color = if (dot.practiced) SunYellow else CloudBlue,
+                            shape = CircleShape,
+                        ) {
+                            Box(Modifier.size(24.dp))
+                        }
+                    }
+                }
+            }
+            Text(
+                WEEKLY_PATTERN_COPY,
+                color = Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+internal data class WeeklyDotItem(
+    val dayLabel: String,
+    val practiced: Boolean,
+)
+
+internal fun weeklyDotItems(weekly: WeeklyPracticeSummary): List<WeeklyDotItem> =
+    weekly.days.map { day ->
+        WeeklyDotItem(
+            dayLabel = compactDayLabel(day.date),
+            practiced = day.practiced,
+        )
+    }
+
+private fun compactDayLabel(date: String): String =
+    when (runCatching { LocalDate.parse(date).dayOfWeek }.getOrNull()) {
+        DayOfWeek.MONDAY -> "M"
+        DayOfWeek.TUESDAY -> "T"
+        DayOfWeek.WEDNESDAY -> "W"
+        DayOfWeek.THURSDAY -> "T"
+        DayOfWeek.FRIDAY -> "F"
+        DayOfWeek.SATURDAY -> "S"
+        DayOfWeek.SUNDAY -> "S"
+        null -> "?"
+    }
+
+internal const val WEEKLY_PATTERN_COPY =
+    "A gentle pattern, not a streak—rest days are okay."
 
 @Composable
 private fun TodaySkyHero(
