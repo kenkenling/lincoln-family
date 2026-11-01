@@ -185,8 +185,7 @@ class PracticeStore(context: Context) {
     fun loadProfile(): StudentProfile {
         migrateRetiredConnections()
         val storedId = prefs.getString("student_profile_id", null)
-        val hasLegacyProfile = storedId != null || prefs.contains("student_profile_name")
-        val defaultName = if (hasLegacyProfile) "Lincoln" else "Student"
+        val defaultName = "Student"
         val profile = StudentProfile(
             id = storedId ?: UUID.randomUUID().toString(),
             name = prefs.getString("student_profile_name", defaultName)

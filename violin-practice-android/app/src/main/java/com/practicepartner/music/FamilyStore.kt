@@ -9,7 +9,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.UUID
 
-class FamilyStore(context: Context) {
+class FamilyStore(context: Context) : WorkbookSyncSettings {
     private val prefs = context.getSharedPreferences("practice_partner_v2", Context.MODE_PRIVATE)
 
     fun loadHousehold(): Household {
@@ -21,12 +21,7 @@ class FamilyStore(context: Context) {
                 return household
             }
 
-        val hasLegacyProfile = listOf(
-            "student_profile_id",
-            "student_profile_name",
-            "student_profile_instrument",
-        ).any(prefs::contains)
-        val defaultLegacyName = if (hasLegacyProfile) "Lincoln" else "Student"
+        val defaultLegacyName = "Student"
         val legacyProfile = ChildProfile(
             id = prefs.getString("student_profile_id", null) ?: UUID.randomUUID().toString(),
             name = prefs.getString("student_profile_name", defaultLegacyName)
@@ -65,7 +60,7 @@ class FamilyStore(context: Context) {
         }
     }
 
-    fun saveChildProfile(profile: ChildProfile): Household {
+    override fun saveChildProfile(profile: ChildProfile): Household {
         val household = loadHousehold()
         require(household.childProfiles.any { it.id == profile.id }) {
             "The child profile does not exist."
@@ -127,10 +122,10 @@ class FamilyStore(context: Context) {
         return updated
     }
 
-    fun loadLocalRevision(childProfileId: String): Long =
+    override fun loadLocalRevision(childProfileId: String): Long =
         prefs.getLong(scopedKey("local_data_revision", childProfileId), 0L).coerceAtLeast(0L)
 
-    fun bumpLocalRevision(childProfileId: String): Long {
+    override fun bumpLocalRevision(childProfileId: String): Long {
         val next = loadLocalRevision(childProfileId) + 1L
         prefs.edit(commit = true) {
             putLong(scopedKey("local_data_revision", childProfileId), next)
@@ -138,11 +133,11 @@ class FamilyStore(context: Context) {
         return next
     }
 
-    fun loadLastFileSaveRevision(childProfileId: String): Long =
+    override fun loadLastFileSaveRevision(childProfileId: String): Long =
         prefs.getLong(scopedKey("last_local_file_revision", childProfileId), -1L)
             .coerceAtLeast(-1L)
 
-    fun saveLastFileSaveRevision(childProfileId: String, revision: Long) {
+    override fun saveLastFileSaveRevision(childProfileId: String, revision: Long) {
         prefs.edit(commit = true) {
             putLong(
                 scopedKey("last_local_file_revision", childProfileId),
@@ -151,11 +146,11 @@ class FamilyStore(context: Context) {
         }
     }
 
-    fun loadLastFileSaveAt(childProfileId: String): Long? =
+    override fun loadLastFileSaveAt(childProfileId: String): Long? =
         prefs.getLong(scopedKey("last_local_file_save_at", childProfileId), 0L)
             .takeIf { it > 0L }
 
-    fun saveLastFileSaveAt(childProfileId: String, atMillis: Long) {
+    override fun saveLastFileSaveAt(childProfileId: String, atMillis: Long) {
         prefs.edit(commit = true) {
             putLong(scopedKey("last_local_file_save_at", childProfileId), atMillis)
         }

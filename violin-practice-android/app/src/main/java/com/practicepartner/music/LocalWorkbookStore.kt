@@ -23,10 +23,10 @@ data class LocalWorkbookSave(
 
 class LocalWorkbookException(message: String) : IOException(message)
 
-class LocalWorkbookStore(context: Context) {
+class LocalWorkbookStore(context: Context) : WorkbookStorage {
     private val contentResolver = context.applicationContext.contentResolver
 
-    fun describe(uriText: String?): LocalWorkbookFile? {
+    override fun describe(uriText: String?): LocalWorkbookFile? {
         val uri = uriText?.toUri() ?: return null
         if (uri.scheme != "content") return null
         val accessible = runCatching {
@@ -39,12 +39,12 @@ class LocalWorkbookStore(context: Context) {
         )
     }
 
-    suspend fun write(
+    override suspend fun write(
         uriText: String,
         profile: StudentProfile,
         snapshot: PracticeSnapshot,
         updatedAtMillis: Long,
-        requireExistingTemplate: Boolean = false,
+        requireExistingTemplate: Boolean,
     ): LocalWorkbookSave = withContext(Dispatchers.IO) {
         val uri = requireContentUri(uriText)
         val existingBytes = readExistingBytes(uri)
@@ -100,7 +100,7 @@ class LocalWorkbookStore(context: Context) {
         )
     }
 
-    suspend fun readAssignments(
+    override suspend fun readAssignments(
         uriText: String,
     ): WorkbookAssignmentImportResult = withContext(Dispatchers.IO) {
         val uri = requireContentUri(uriText)

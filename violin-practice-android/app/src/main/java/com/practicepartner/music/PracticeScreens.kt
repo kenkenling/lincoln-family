@@ -56,6 +56,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import java.io.File
 import java.text.DateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -922,6 +923,7 @@ fun PracticeSessionPage(
     state: PracticeUiState,
     task: PracticeTask,
     studentName: String,
+    createRecordingFile: (String) -> File,
     onRecordingSaved: (RecordingFile) -> Unit,
     onRecordingChanged: (Boolean) -> Unit,
     onCompleteRepetition: () -> Unit,
@@ -1065,6 +1067,7 @@ fun PracticeSessionPage(
                 )
                 CameraRecorderPanel(
                     recordingFileName = recordingFileName,
+                    createRecordingFile = createRecordingFile,
                     onSaved = { recording ->
                         savedTake = recording
                         onRecordingSaved(recording)

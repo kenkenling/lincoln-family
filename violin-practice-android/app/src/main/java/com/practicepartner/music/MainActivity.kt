@@ -312,6 +312,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                             state = state,
                             task = activeTask,
                             studentName = viewModel.studentProfile.name,
+                            createRecordingFile = viewModel::createRecordingFile,
                             onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
                             onRecordingChanged = viewModel::setRecordingActive,
                             onCompleteRepetition = { viewModel.recordRepetition(activeTask) },

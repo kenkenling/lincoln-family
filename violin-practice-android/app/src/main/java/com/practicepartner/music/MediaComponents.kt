@@ -2,7 +2,6 @@ package com.practicepartner.music
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.os.Environment
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.MediaController
@@ -204,6 +203,7 @@ private fun LocalVideoPlayer(task: PracticeTask) {
 @Composable
 fun CameraRecorderPanel(
     recordingFileName: String,
+    createRecordingFile: (String) -> File,
     onSaved: (RecordingFile) -> Unit,
     onRecordingChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -273,13 +273,14 @@ fun CameraRecorderPanel(
         isStarting = true
         onRecordingChanged(true)
         recordingMessage = "Starting the camera…"
-        val externalDirectory = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-        val directory = if (externalDirectory != null) {
-            File(externalDirectory, "Practice Partner")
-        } else {
-            File(context.filesDir, "Practice Partner")
-        }.apply { mkdirs() }
-        val file = nextAvailableRecordingFile(directory, recordingFileName)
+        val file = try {
+            createRecordingFile(recordingFileName)
+        } catch (error: Exception) {
+            isStarting = false
+            onRecordingChanged(false)
+            recordingMessage = error.message ?: "Could not create the recording file."
+            return
+        }
         val options = FileOutputOptions.Builder(file).build()
         val audioConfig = if (audioPermission) AudioConfig.create(true) else AudioConfig.AUDIO_DISABLED
         try {
