@@ -15,16 +15,10 @@ class PracticeStore(context: Context) {
     private val prefs = context.getSharedPreferences("practice_partner_v2", Context.MODE_PRIVATE)
     private val legacyPrefs = context.getSharedPreferences("practice_partner_v1", Context.MODE_PRIVATE)
 
-    fun load(currentDate: String = currentDateKey()): PracticeSnapshot =
-        load(loadProfile(), currentDate)
-
     fun load(
         profile: ChildProfile,
         currentDate: String = currentDateKey(),
     ): PracticeSnapshot = loadWithStatus(profile, currentDate).snapshot
-
-    fun loadWithStatus(currentDate: String = currentDateKey()): PracticeLoadResult =
-        loadWithStatus(loadProfile(), currentDate)
 
     fun loadWithStatus(
         profile: ChildProfile,
@@ -90,8 +84,6 @@ class PracticeStore(context: Context) {
         }
         return migrated
     }
-
-    fun save(snapshot: PracticeSnapshot) = save(loadProfile(), snapshot)
 
     fun save(profile: ChildProfile, snapshot: PracticeSnapshot) {
         val key = snapshotKey(profile.id)
@@ -162,72 +154,6 @@ class PracticeStore(context: Context) {
         if (prefs.contains(LEGACY_SNAPSHOT_OWNER_KEY)) return
         prefs.edit(commit = true) {
             putString(LEGACY_SNAPSHOT_OWNER_KEY, childProfileId)
-        }
-    }
-
-    fun loadLocalRevision(): Long = prefs.getLong("local_data_revision", 0L).coerceAtLeast(0L)
-
-    fun bumpLocalRevision(): Long {
-        val next = loadLocalRevision() + 1L
-        prefs.edit(commit = true) { putLong("local_data_revision", next) }
-        return next
-    }
-
-    fun loadLastFileSaveRevision(): Long =
-        prefs.getLong("last_local_file_revision", -1L).coerceAtLeast(-1L)
-
-    fun saveLastFileSaveRevision(revision: Long) {
-        prefs.edit(commit = true) {
-            putLong("last_local_file_revision", revision.coerceAtLeast(0L))
-        }
-    }
-
-    fun loadProfile(): StudentProfile {
-        migrateRetiredConnections()
-        val storedId = prefs.getString("student_profile_id", null)
-        val defaultName = "Student"
-        val profile = StudentProfile(
-            id = storedId ?: UUID.randomUUID().toString(),
-            name = prefs.getString("student_profile_name", defaultName)
-                .orEmpty()
-                .ifBlank { defaultName },
-            instrument = prefs.getString("student_profile_instrument", "Violin")
-                .orEmpty()
-                .ifBlank { "Violin" },
-            excelWorkbookUri = prefs.getString("excel_workbook_uri", null),
-            excelWorkbookName = prefs.getString("excel_workbook_name", null),
-        )
-        if (storedId == null) saveProfile(profile)
-        return profile
-    }
-
-    fun saveProfile(profile: StudentProfile) {
-        prefs.edit(commit = true) {
-            putString("student_profile_id", profile.id)
-            putString("student_profile_name", profile.name)
-            putString("student_profile_instrument", profile.instrument)
-            putString("excel_workbook_uri", profile.excelWorkbookUri)
-            putString("excel_workbook_name", profile.excelWorkbookName)
-            RETIRED_CONNECTION_KEYS.forEach(::remove)
-        }
-    }
-
-    fun loadLastFileSaveAt(): Long? =
-        prefs.getLong("last_local_file_save_at", 0L).takeIf { it > 0L }
-
-    fun saveLastFileSaveAt(atMillis: Long) {
-        prefs.edit(commit = true) { putLong("last_local_file_save_at", atMillis) }
-    }
-
-    private fun migrateRetiredConnections() {
-        if (prefs.getBoolean(LOCAL_ONLY_MIGRATION_KEY, false)) return
-        prefs.edit(commit = true) {
-            RETIRED_CONNECTION_KEYS.forEach(::remove)
-            remove("excel_workbook_uri")
-            remove("excel_workbook_name")
-            remove("last_cloud_sync_at")
-            remove("last_synced_revision")
-            putBoolean(LOCAL_ONLY_MIGRATION_KEY, true)
         }
     }
 
@@ -586,22 +512,8 @@ class PracticeStore(context: Context) {
     )
 }
 
-private const val LOCAL_ONLY_MIGRATION_KEY = "local_only_profile_migration_v1"
 private const val LEGACY_SNAPSHOT_OWNER_KEY = "legacy_snapshot_owner_child_id"
 private const val MAX_SESSIONS = 500
-
-private val RETIRED_CONNECTION_KEYS = listOf(
-    "youtube_channel_url",
-    "youtube_channel_id",
-    "youtube_channel_title",
-    "youtube_account_email",
-    "drive_spreadsheet_id",
-    "drive_spreadsheet_name",
-    "drive_spreadsheet_url",
-    "drive_account_email",
-    "drive_folder_uri",
-    "drive_folder_name",
-)
 
 private data class DecodedPracticeSnapshot(
     val snapshot: PracticeSnapshot,
@@ -612,12 +524,3 @@ private fun skippedRecordWarning(skippedRecords: Int): String? =
     skippedRecords.takeIf { it > 0 }?.let {
         "Recovered the readable data and skipped $it damaged record${if (it == 1) "" else "s"}."
     }
-
-private fun JSONObject.optNullableString(name: String): String? =
-    if (!has(name) || isNull(name)) null else optString(name).takeIf(String::isNotBlank)
-
-private fun JSONObject.optIntOrNull(name: String): Int? =
-    if (!has(name) || isNull(name)) null else optInt(name)
-
-private fun JSONObject.optLongOrNull(name: String): Long? =
-    if (!has(name) || isNull(name)) null else optLong(name)

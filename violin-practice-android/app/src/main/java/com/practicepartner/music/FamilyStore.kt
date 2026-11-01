@@ -288,24 +288,7 @@ internal fun isValidAdultPin(pin: String): Boolean = pin.matches(Regex("\\d{4}")
 private fun adultPinHash(salt: ByteArray, pin: String): ByteArray =
     MessageDigest.getInstance("SHA-256").digest(salt + pin.toByteArray(Charsets.UTF_8))
 
-private fun JSONObject.optNullableString(name: String): String? =
-    if (!has(name) || isNull(name)) null else optString(name).takeIf(String::isNotBlank)
-
 private const val HOUSEHOLD_KEY = "household_v1"
 private const val SCOPED_SETTINGS_MIGRATION_KEY = "child_scoped_settings_migration_v1"
 private const val ADULT_PIN_SALT_KEY = "adult_pin_salt_v1"
 private const val ADULT_PIN_HASH_KEY = "adult_pin_hash_v1"
-private const val LOCAL_ONLY_MIGRATION_KEY = "local_only_profile_migration_v1"
-
-private val RETIRED_CONNECTION_KEYS = listOf(
-    "youtube_channel_url",
-    "youtube_channel_id",
-    "youtube_channel_title",
-    "youtube_account_email",
-    "drive_spreadsheet_id",
-    "drive_spreadsheet_name",
-    "drive_spreadsheet_url",
-    "drive_account_email",
-    "drive_folder_uri",
-    "drive_folder_name",
-)
