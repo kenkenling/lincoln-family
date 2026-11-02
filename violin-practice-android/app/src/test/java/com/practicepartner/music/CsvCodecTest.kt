@@ -11,7 +11,7 @@ class CsvCodecTest {
     fun roundTripPreservesQuotedFieldsAndOptionalDetails() {
         val original = PracticeTask(
             id = "original-id",
-            assignedDate = "2026-10-30",
+            assignedDate = DateKey("2026-10-30"),
             title = "Boreas, measures 12–20",
             source = "https://youtu.be/VZIWCt-jW6g",
             sourceType = SourceType.YOUTUBE,
@@ -25,7 +25,7 @@ class CsvCodecTest {
 
         val decoded = CsvCodec.decode(
             CsvCodec.encode(listOf(original)),
-            defaultDate = "2026-10-30",
+            defaultDate = DateKey("2026-10-30"),
             idFactory = { "imported-id" },
         )
 
@@ -49,11 +49,11 @@ class CsvCodecTest {
             "Tremolo","https://www.youtube.com/watch?v=c79nrCCcKuM",0,30,4
         """.trimIndent()
 
-        val decoded = CsvCodec.decode(csv, defaultDate = "2026-10-30") { "legacy-id" }
+        val decoded = CsvCodec.decode(csv, defaultDate = DateKey("2026-10-30")) { "legacy-id" }
 
         assertTrue(decoded.errors.isEmpty())
         assertEquals("Tremolo", decoded.tasks.single().title)
-        assertEquals("2026-10-30", decoded.tasks.single().assignedDate)
+        assertEquals(DateKey("2026-10-30"), decoded.tasks.single().assignedDate)
         assertEquals(4, decoded.tasks.single().repetitions)
     }
 
@@ -64,7 +64,7 @@ class CsvCodecTest {
             "Shifting","https://youtu.be/VZIWCt-jW6g",0,20,3
         """.trimIndent()
 
-        val decoded = CsvCodec.decode(csv, defaultDate = "2026-10-30")
+        val decoded = CsvCodec.decode(csv, defaultDate = DateKey("2026-10-30"))
 
         assertTrue(decoded.errors.isEmpty())
         assertEquals("Shifting", decoded.tasks.single().title)
@@ -78,7 +78,7 @@ class CsvCodecTest {
             2026-10-30,Bad,https://example.com/watch?v=VZIWCt-jW6g,0,10,3
         """.trimIndent()
 
-        val decoded = CsvCodec.decode(csv, defaultDate = "2026-10-30")
+        val decoded = CsvCodec.decode(csv, defaultDate = DateKey("2026-10-30"))
 
         assertEquals(1, decoded.tasks.size)
         assertEquals(1, decoded.errors.size)
@@ -89,7 +89,7 @@ class CsvCodecTest {
     fun localReferencesExportAsPortableReattachmentPlaceholders() {
         val local = PracticeTask(
             id = "local",
-            assignedDate = "2026-10-31",
+            assignedDate = DateKey("2026-10-31"),
             title = "Teacher demonstration",
             source = "content://private/video",
             sourceType = SourceType.LOCAL,
@@ -100,7 +100,7 @@ class CsvCodecTest {
         )
 
         val encoded = CsvCodec.encode(listOf(local))
-        val decoded = CsvCodec.decode(encoded, defaultDate = "2026-10-31") { "imported" }
+        val decoded = CsvCodec.decode(encoded, defaultDate = DateKey("2026-10-31")) { "imported" }
 
         assertFalse(encoded.contains("content://private"))
         assertEquals(2, decoded.errors.size)
@@ -113,7 +113,7 @@ class CsvCodecTest {
     fun rejectsAnUnclosedQuotedField() {
         val decoded = CsvCodec.decode(
             "title,source,start_seconds,end_seconds,repetitions\n\"Tremolo,https://youtu.be/VZIWCt-jW6g,0,10,3",
-            defaultDate = "2026-10-31",
+            defaultDate = DateKey("2026-10-31"),
         )
 
         assertTrue(decoded.tasks.isEmpty())
@@ -126,7 +126,7 @@ class CsvCodecTest {
             id = "piano-one",
             childProfileId = "student-two",
             instrument = "Piano",
-            assignedDate = "2026-11-01",
+            assignedDate = DateKey("2026-11-01"),
             title = "C major scale",
             source = "",
             sourceType = SourceType.NONE,
@@ -137,7 +137,7 @@ class CsvCodecTest {
 
         val decoded = CsvCodec.decode(
             text = CsvCodec.encode(listOf(assignment)),
-            defaultDate = "2026-11-01",
+            defaultDate = DateKey("2026-11-01"),
             childProfileId = "student-two",
             instrument = "Piano",
         )
@@ -155,7 +155,7 @@ class CsvCodecTest {
 
         val decoded = CsvCodec.decode(
             text = csv,
-            defaultDate = "2026-11-01",
+            defaultDate = DateKey("2026-11-01"),
             childProfileId = "current-child",
             instrument = "Violin",
         )
@@ -170,7 +170,7 @@ class CsvCodecTest {
             id = "time-goal",
             childProfileId = "student",
             instrument = "Piano",
-            assignedDate = "2026-11-02",
+            assignedDate = DateKey("2026-11-02"),
             title = "Repertoire passage",
             source = "https://youtu.be/VZIWCt-jW6g",
             sourceType = SourceType.YOUTUBE,

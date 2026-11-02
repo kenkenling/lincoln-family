@@ -15,7 +15,7 @@ data class WorkbookAssignment(
     val id: String,
     val childProfileId: String,
     val instrument: String,
-    val assignedDate: String,
+    val assignedDate: DateKey,
     val title: String,
     val sourceType: SourceType,
     val source: String,
@@ -285,14 +285,14 @@ object XlsxWorkbookReader {
             .toMap()
     }
 
-    private fun normalizedWorkbookDate(value: String): String? {
+    private fun normalizedWorkbookDate(value: String): DateKey? {
         val trimmed = value.trim()
-        runCatching { LocalDate.parse(trimmed) }.getOrNull()?.let { return it.toString() }
+        runCatching { DateKey.parse(trimmed) }.getOrNull()?.let { return it }
         val serial = trimmed.toDoubleOrNull()
             ?.takeIf { it.isFinite() && it >= 1.0 }
             ?: return null
         return runCatching {
-            EXCEL_DATE_EPOCH.plusDays(floor(serial).toLong()).toString()
+            DateKey.from(EXCEL_DATE_EPOCH.plusDays(floor(serial).toLong()))
         }.getOrNull()
     }
 

@@ -3,7 +3,6 @@ package com.practicepartner.music
 import kotlinx.serialization.Serializable
 import java.net.URI
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
@@ -38,6 +37,12 @@ enum class PracticeReflection(
     PROUD("I’m proud", "Felt proud"),
     MAKING_PROGRESS("I’m getting there", "Making progress"),
     NEED_HELP("I need help", "Would like help"),
+}
+
+enum class MasteryStatus(val summaryLabel: String) {
+    NOT_ASSESSED("Not assessed"),
+    STUDENT_CONFIDENT("Student feels confident"),
+    TEACHER_APPROVED("Teacher approved"),
 }
 
 enum class SourceType {
@@ -89,7 +94,7 @@ data class LocalFileUiState(
 @Serializable
 data class Assignment(
     val id: String,
-    val assignedDate: String,
+    val assignedDate: DateKey,
     val title: String,
     val source: String,
     val sourceType: SourceType,
@@ -113,8 +118,9 @@ typealias PracticeTask = Assignment
 
 @Serializable
 data class DailyProgress(
-    val date: String,
+    val date: DateKey,
     val childProfileId: String = "",
+    // Completion means the assigned practice goal was done; it does not imply mastery.
     val completedTaskIds: Set<String> = emptySet(),
     val repetitionsByTask: Map<String, Int> = emptyMap(),
     val elapsedSeconds: Long = 0L,
@@ -164,7 +170,7 @@ data class DailyProgress(
 @Serializable
 data class PracticeEvent(
     val id: String,
-    val date: String,
+    val date: DateKey,
     val taskId: String?,
     val taskTitle: String,
     val event: String,
@@ -190,8 +196,9 @@ data class PracticeSession(
     val assignmentId: String,
     val assignmentTitle: String,
     val instrument: String,
-    val date: String,
+    val date: DateKey,
     val mode: PracticeMode,
+    val modesUsed: Set<PracticeMode> = setOf(mode),
     val startedAtMillis: Long,
     val endedAtMillis: Long? = null,
     val repetitionsCompleted: Int = 0,
@@ -203,12 +210,13 @@ data class PracticeSession(
     val targetSeconds: Int = 0,
     val elapsedSeconds: Long = 0L,
     val reflection: PracticeReflection? = null,
+    val masteryStatus: MasteryStatus = MasteryStatus.NOT_ASSESSED,
 )
 
 @Serializable
 data class PracticeSnapshot(
     val tasks: List<PracticeTask> = emptyList(),
-    val progressByDate: Map<String, DailyProgress> = emptyMap(),
+    val progressByDate: Map<DateKey, DailyProgress> = emptyMap(),
     val events: List<PracticeEvent> = emptyList(),
     val sessions: List<PracticeSession> = emptyList(),
 )
@@ -222,8 +230,8 @@ data class RecordingFile(
 data class PracticeUiState(
     val snapshot: PracticeSnapshot,
     val activeChildProfileId: String,
-    val currentDate: String,
-    val summaryDate: String = currentDate,
+    val currentDate: DateKey,
+    val summaryDate: DateKey = currentDate,
     val page: AppPage = AppPage.TODAY,
     val mode: PracticeMode = PracticeMode.LISTEN,
     val selectedTaskId: String? = null,
@@ -268,7 +276,7 @@ data class PracticeUiState(
     val summarySessions: List<PracticeSession> =
         snapshot.sessions.filter { it.date == summaryDate }
 
-    val historyDates: List<String> = (
+    val historyDates: List<DateKey> = (
         snapshot.tasks.map(PracticeTask::assignedDate) +
             snapshot.progressByDate.keys +
             snapshot.events.map(PracticeEvent::date) +
@@ -279,20 +287,31 @@ data class PracticeUiState(
     val activeTask: PracticeTask? =
         snapshot.tasks.firstOrNull { it.id == activeTaskId }
 
+    val activeSession: PracticeSession? =
+        snapshot.sessions.firstOrNull { it.id == activeSessionId }
+
+    val activeSessionModesUsed: Set<PracticeMode> =
+        activeSession?.resolvedModesUsed().orEmpty()
+
+    val historyCapacityWarning: String? = practiceHistoryCapacityWarning(
+        eventCount = snapshot.events.size,
+        sessionCount = snapshot.sessions.size,
+    )
+
     val pendingReflectionSession: PracticeSession? =
         snapshot.sessions.firstOrNull { it.id == pendingReflectionSessionId }
 
-    fun tasksForDate(date: String): List<PracticeTask> =
+    fun tasksForDate(date: DateKey): List<PracticeTask> =
         snapshot.tasks.filter {
             it.assignedDate == date && it.archivedAtMillis == null
         }
 
-    fun archivedTasksForDate(date: String): List<PracticeTask> =
+    fun archivedTasksForDate(date: DateKey): List<PracticeTask> =
         snapshot.tasks.filter {
             it.assignedDate == date && it.archivedAtMillis != null
         }
 
-    fun secondsForTask(taskId: String, date: String): Long =
+    fun secondsForTask(taskId: String, date: DateKey): Long =
         snapshot.sessions
             .asSequence()
             .filter { it.assignmentId == taskId && it.date == date }
@@ -304,7 +323,7 @@ data class PracticeUiState(
                 }
             }
 
-    fun goalMet(task: PracticeTask, date: String = task.assignedDate): Boolean {
+    fun goalMet(task: PracticeTask, date: DateKey = task.assignedDate): Boolean {
         val progress = snapshot.progressByDate[date] ?: DailyProgress(date)
         if (task.id in progress.completedTaskIds) return true
         return when (task.goalType) {
@@ -315,7 +334,7 @@ data class PracticeUiState(
         }
     }
 
-    fun progressLabel(task: PracticeTask, date: String = task.assignedDate): String =
+    fun progressLabel(task: PracticeTask, date: DateKey = task.assignedDate): String =
         when (task.goalType) {
             PracticeGoalType.REPETITIONS ->
                 "${snapshot.progressByDate[date]?.repetitionsFor(task.id) ?: 0} / " +
@@ -325,11 +344,11 @@ data class PracticeUiState(
                     "${formatGoalDuration(task.targetSeconds.toLong())}"
         }
 
-    fun weeklySummary(anchorDate: String = summaryDate): WeeklyPracticeSummary {
-        val anchor = runCatching { LocalDate.parse(anchorDate) }.getOrDefault(LocalDate.now())
+    fun weeklySummary(anchorDate: DateKey = summaryDate): WeeklyPracticeSummary {
+        val anchor = anchorDate.toLocalDate()
         val firstDay = anchor.minusDays((anchor.dayOfWeek.value - 1).toLong())
         val days = (0L..6L).map { offset ->
-            val date = firstDay.plusDays(offset).toString()
+            val date = DateKey.from(firstDay.plusDays(offset))
             val sessionSeconds = snapshot.sessions
                 .filter { it.date == date }
                 .sumOf(PracticeSession::elapsedSeconds)
@@ -350,27 +369,42 @@ data class PracticeUiState(
             )
         }
         return WeeklyPracticeSummary(
-            startDate = firstDay.toString(),
-            endDate = firstDay.plusDays(6).toString(),
+            startDate = DateKey.from(firstDay),
+            endDate = DateKey.from(firstDay.plusDays(6)),
             days = days,
         )
     }
 }
 
+internal fun PracticeTask.availablePracticeModes(): List<PracticeMode> {
+    if (sourceType == SourceType.NONE) return listOf(PracticeMode.PLAY_YOURSELF)
+    return PracticeMode.entries
+        .filter(enabledModes::contains)
+        .ifEmpty { listOf(PracticeMode.PLAY_YOURSELF) }
+}
+
+internal fun PracticeSession.resolvedModesUsed(): Set<PracticeMode> =
+    modesUsed.ifEmpty { setOf(mode) }
+
+internal fun PracticeSession.orderedModesUsed(): List<PracticeMode> {
+    val used = resolvedModesUsed()
+    return PracticeMode.entries.filter(used::contains)
+}
+
 internal fun calculateDaysSinceLastPractice(
     snapshot: PracticeSnapshot,
-    currentDate: String,
+    currentDate: DateKey,
 ): Int {
-    val today = runCatching { LocalDate.parse(currentDate) }.getOrNull() ?: return 0
+    val today = currentDate.toLocalDate()
     val practiceDates = buildList {
-        snapshot.sessions.mapNotNullTo(this) { session ->
-            runCatching { LocalDate.parse(session.date) }.getOrNull()
+        snapshot.sessions.mapTo(this) { session ->
+            session.date.toLocalDate()
         }
         snapshot.progressByDate.values
             .asSequence()
             .filter(DailyProgress::hasPracticeActivity)
-            .mapNotNullTo(this) { progress ->
-                runCatching { LocalDate.parse(progress.date) }.getOrNull()
+            .mapTo(this) { progress ->
+                progress.date.toLocalDate()
             }
     }
     val lastPracticeDate = practiceDates
@@ -390,14 +424,14 @@ private fun DailyProgress.hasPracticeActivity(): Boolean =
         repetitionsByTask.values.any { it > 0 }
 
 data class WeeklyPracticeDay(
-    val date: String,
+    val date: DateKey,
     val practiced: Boolean,
     val seconds: Long,
 )
 
 data class WeeklyPracticeSummary(
-    val startDate: String,
-    val endDate: String,
+    val startDate: DateKey,
+    val endDate: DateKey,
     val days: List<WeeklyPracticeDay>,
 ) {
     val practicedDays: Int
@@ -510,10 +544,10 @@ fun formatGoalDuration(seconds: Long): String {
     }
 }
 
-fun currentDateKey(): String = LocalDate.now().toString()
+fun currentDateKey(): DateKey = DateKey.today()
 
-fun dateKeyForMillis(millis: Long): String =
-    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+fun dateKeyForMillis(millis: Long): DateKey =
+    DateKey.from(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate())
 
 fun youtubeVideoId(value: String): String? {
     val uri = runCatching { URI(value.trim()) }.getOrNull() ?: return null

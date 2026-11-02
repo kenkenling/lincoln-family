@@ -1,5 +1,6 @@
 package com.practicepartner.music
 
+import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,7 +25,7 @@ class ProfileArchiveWriterTest {
             id = "assignment",
             childProfileId = profile.id,
             instrument = profile.instrument,
-            assignedDate = "2026-11-01",
+            assignedDate = DateKey("2026-11-01"),
             title = "Boreas passage",
             source = "content://private/reference",
             sourceType = SourceType.LOCAL,
@@ -47,11 +48,16 @@ class ProfileArchiveWriterTest {
                     instrument = profile.instrument,
                     date = task.assignedDate,
                     mode = PracticeMode.PLAY_YOURSELF,
+                    modesUsed = setOf(
+                        PracticeMode.LISTEN,
+                        PracticeMode.PLAY_YOURSELF,
+                    ),
                     startedAtMillis = 1_799_999_000_000,
                     endedAtMillis = 1_799_999_060_000,
                     elapsedSeconds = 60,
                     status = PracticeSessionStatus.ENDED,
                     reflection = PracticeReflection.MAKING_PROGRESS,
+                    masteryStatus = MasteryStatus.STUDENT_CONFIDENT,
                 ),
             ),
             events = listOf(
@@ -100,6 +106,15 @@ class ProfileArchiveWriterTest {
             .joinToString("|") { it.toString(Charsets.UTF_8) }
         assertTrue(renderedText.contains("MAKING_PROGRESS"))
         assertTrue(renderedText.contains("Boreas passage"))
+        val archivedModes = JSONObject(
+            entries.getValue("practice-history.json").toString(Charsets.UTF_8),
+        )
+            .getJSONArray("sessions")
+            .getJSONObject(0)
+            .getJSONArray("modesUsed")
+        assertEquals("LISTEN", archivedModes.getString(0))
+        assertEquals("PLAY_YOURSELF", archivedModes.getString(1))
+        assertTrue(renderedText.contains("STUDENT_CONFIDENT"))
         assertFalse(renderedText.contains("content://private"))
         assertFalse(renderedText.contains(recording.absolutePath))
         assertArrayEquals(recordingBytes, entries.getValue("recordings/${recording.name}"))
@@ -109,7 +124,7 @@ class ProfileArchiveWriterTest {
     fun suggestedArchiveNameIsDateSortedAndFilesystemSafe() {
         val fileName = ProfileArchiveWriter.fileName(
             ChildProfile(id = "student", name = "A/B: C", instrument = "Piano"),
-            date = LocalDate.of(2026, 11, 1),
+            date = DateKey.from(LocalDate.of(2026, 11, 1)),
         )
 
         assertEquals("LK Practice - A-B- C - data - 2026-11-01.zip", fileName)

@@ -5,7 +5,6 @@ import org.json.JSONObject
 import java.io.File
 import java.io.OutputStream
 import java.time.Instant
-import java.time.LocalDate
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -15,9 +14,9 @@ data class ProfileArchiveResult(
 )
 
 object ProfileArchiveWriter {
-    fun fileName(profile: ChildProfile, date: LocalDate = LocalDate.now()): String {
+    fun fileName(profile: ChildProfile, date: DateKey = currentDateKey()): String {
         val student = safeArchiveName(profile.name, "Student")
-        return "LK Practice - $student - data - $date.zip"
+        return "LK Practice - $student - data - ${date.value}.zip"
     }
 
     fun write(
@@ -91,7 +90,7 @@ object ProfileArchiveWriter {
         put("dailyProgress", JSONArray().apply {
             snapshot.progressByDate.values.sortedBy(DailyProgress::date).forEach { progress ->
                 put(JSONObject().apply {
-                    put("date", progress.date)
+                    put("date", progress.date.value)
                     put("elapsedSeconds", progress.elapsedSeconds)
                     put("completedAssignmentIds", JSONArray(progress.completedTaskIds.toList()))
                     put("repetitionsByAssignment", JSONObject(progress.repetitionsByTask))
@@ -102,7 +101,7 @@ object ProfileArchiveWriter {
             snapshot.sessions.sortedBy(PracticeSession::startedAtMillis).forEach { session ->
                 put(JSONObject().apply {
                     put("id", session.id)
-                    put("date", session.date)
+                    put("date", session.date.value)
                     put("assignmentId", session.assignmentId)
                     put("assignmentRevision", session.assignmentRevision)
                     put("assignmentTitle", session.assignmentTitle)
@@ -112,6 +111,10 @@ object ProfileArchiveWriter {
                     put("targetRepetitions", session.targetRepetitions)
                     put("targetSeconds", session.targetSeconds)
                     put("mode", session.mode.name)
+                    put(
+                        "modesUsed",
+                        JSONArray(session.orderedModesUsed().map(PracticeMode::name)),
+                    )
                     put("startedAtUtc", Instant.ofEpochMilli(session.startedAtMillis).toString())
                     put(
                         "endedAtUtc",
@@ -123,6 +126,7 @@ object ProfileArchiveWriter {
                     put("repetitionsCompleted", session.repetitionsCompleted)
                     put("status", session.status.name)
                     put("reflection", session.reflection?.name ?: JSONObject.NULL)
+                    put("masteryStatus", session.masteryStatus.name)
                 })
             }
         })
@@ -130,7 +134,7 @@ object ProfileArchiveWriter {
             snapshot.events.sortedBy(PracticeEvent::atMillis).forEach { event ->
                 put(JSONObject().apply {
                     put("id", event.id)
-                    put("date", event.date)
+                    put("date", event.date.value)
                     put("sessionId", event.sessionId ?: JSONObject.NULL)
                     put("assignmentId", event.taskId ?: JSONObject.NULL)
                     put("assignmentTitle", event.taskTitle)

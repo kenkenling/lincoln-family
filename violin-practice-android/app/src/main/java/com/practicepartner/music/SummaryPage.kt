@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,11 +36,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import java.text.DateFormat
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
@@ -111,7 +113,7 @@ fun SummaryPage(
                     Column {
                         Text(
                             friendlyFullDate(state.summaryDate).uppercase(),
-                            color = Paper.copy(alpha = 0.78f),
+                            color = Paper,
                             style = MaterialTheme.typography.labelMedium,
                         )
                         Text(
@@ -120,7 +122,7 @@ fun SummaryPage(
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                         )
-                        Text("active practice", color = Paper.copy(alpha = 0.8f))
+                        Text("active practice", color = Paper)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
@@ -129,7 +131,7 @@ fun SummaryPage(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
-                        Text("assignments complete", color = Paper.copy(alpha = 0.8f))
+                        Text("assignments complete", color = Paper)
                     }
                 }
             }
@@ -137,6 +139,15 @@ fun SummaryPage(
 
         item {
             Card(
+                modifier = Modifier.clearAndSetSemantics {
+                    contentDescription =
+                        weeklyPracticeAccessibilityDescription(
+                            practicedDays = weekly.practicedDays,
+                            totalDays = weekly.days.size,
+                        ) +
+                        " ${formatDuration(weekly.totalSeconds)} total practice time. " +
+                        WEEKLY_PATTERN_COPY
+                },
                 colors = CardDefaults.cardColors(containerColor = CloudWhite),
                 shape = RoundedCornerShape(20.dp),
             ) {
@@ -154,7 +165,7 @@ fun SummaryPage(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         weekly.days.forEach { day ->
-                            val date = LocalDate.parse(day.date)
+                            val date = day.date.toLocalDate()
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     date.format(DateTimeFormatter.ofPattern("E")).take(1),
@@ -207,6 +218,7 @@ fun SummaryPage(
                 "Assignment progress",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
             )
         }
         if (tasks.isEmpty()) {
@@ -219,11 +231,22 @@ fun SummaryPage(
         }
         items(tasks, key = { "summary-${it.id}" }) { task ->
             Card(
+                modifier = Modifier.mergeForAccessibility(),
                 colors = CardDefaults.cardColors(containerColor = Paper),
                 shape = RoundedCornerShape(16.dp),
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(15.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(15.dp)
+                        .clearAndSetSemantics {
+                            contentDescription = taskCardAccessibilityDescription(
+                                title = task.title,
+                                progress = state.progressLabel(task, state.summaryDate),
+                                completed = state.goalMet(task, state.summaryDate),
+                                archived = task.archivedAtMillis != null,
+                            )
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -243,7 +266,11 @@ fun SummaryPage(
                         }
                     }
                     if (state.goalMet(task, state.summaryDate)) {
-                        Icon(Icons.Default.CheckCircle, "Completed", tint = Forest)
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Forest,
+                        )
                     }
                 }
             }
@@ -254,6 +281,7 @@ fun SummaryPage(
                 "Practice sessions",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
             )
         }
         if (sessions.isEmpty()) {
@@ -275,19 +303,23 @@ fun SummaryPage(
                 ) {
                     Text(session.assignmentTitle, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${session.assignmentType.label} · ${session.mode.kidLabel()} · " +
+                        "${session.assignmentType.label} · " +
                             formatDuration(session.elapsedSeconds),
                         color = Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text(
-                        "${session.status.summaryLabel()} · assignment version " +
-                            session.assignmentRevision,
-                        color = if (session.status == PracticeSessionStatus.COMPLETED) {
-                            Forest
-                        } else {
-                            Muted
-                        },
+                        "Steps explored: " +
+                            session.orderedModesUsed().joinToString(" → ") {
+                                it.kidLabel()
+                            },
+                        color = Muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    SessionCompletionAndMastery(session)
+                    Text(
+                        "Assignment version ${session.assignmentRevision}",
+                        color = Muted,
                         style = MaterialTheme.typography.bodySmall,
                     )
                     session.reflection?.let { reflection ->
@@ -307,6 +339,7 @@ fun SummaryPage(
                 "Practice log",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
             )
         }
         if (events.isEmpty()) {
@@ -372,7 +405,12 @@ fun SummaryPage(
     pendingDelete?.let { event ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete this recording?") },
+            title = {
+                Text(
+                    "Delete this recording?",
+                    modifier = Modifier.accessibilityHeading(),
+                )
+            },
             text = { Text("The video and its practice-log entry will be permanently removed.") },
             confirmButton = {
                 Button(
@@ -392,5 +430,60 @@ fun SummaryPage(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun SessionCompletionAndMastery(session: PracticeSession) {
+    val goalReached = session.status == PracticeSessionStatus.COMPLETED
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.mergeForAccessibility(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            if (goalReached) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Forest,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                Spacer(Modifier.size(20.dp))
+            }
+            Text(
+                "Completion: ${session.status.completionLabel()}",
+                color = if (goalReached) Forest else Muted,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Row(
+            modifier = Modifier.mergeForAccessibility(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            if (session.masteryStatus == MasteryStatus.TEACHER_APPROVED) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = null,
+                    tint = Forest,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                Spacer(Modifier.size(20.dp))
+            }
+            Text(
+                "Mastery: ${session.masteryStatus.summaryLabel}",
+                color = when (session.masteryStatus) {
+                    MasteryStatus.NOT_ASSESSED -> Muted
+                    MasteryStatus.STUDENT_CONFIDENT -> DeepSky
+                    MasteryStatus.TEACHER_APPROVED -> Forest
+                },
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }

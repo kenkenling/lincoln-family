@@ -19,12 +19,12 @@ class PracticeStore(context: Context) : PracticeDataStore {
 
     override fun load(
         profile: ChildProfile,
-        currentDate: String,
+        currentDate: DateKey,
     ): PracticeSnapshot = loadWithStatus(profile, currentDate).snapshot
 
     override fun loadWithStatus(
         profile: ChildProfile,
-        currentDate: String,
+        currentDate: DateKey,
     ): PracticeLoadResult {
         val key = snapshotKey(profile.id)
         val backupKey = snapshotBackupKey(profile.id)
@@ -128,7 +128,7 @@ class PracticeStore(context: Context) : PracticeDataStore {
 
     private fun claimLegacySnapshot(
         profile: ChildProfile,
-        currentDate: String,
+        currentDate: DateKey,
     ): PracticeLoadResult {
         if (prefs.contains(LEGACY_SNAPSHOT_OWNER_KEY)) {
             return PracticeLoadResult(PracticeSnapshot())
@@ -160,7 +160,7 @@ class PracticeStore(context: Context) : PracticeDataStore {
     }
 
     private fun migrateLegacy(
-        currentDate: String,
+        currentDate: DateKey,
         profile: ChildProfile,
     ): PracticeSnapshot {
         val tasks = decodeLegacyRows<LegacyPracticeTask>(
@@ -219,7 +219,7 @@ class PracticeStore(context: Context) : PracticeDataStore {
             } else {
                 mapOf(currentDate to progress)
             },
-            events = events.takeLast(500),
+            events = events.takeLast(MAX_PRACTICE_EVENTS),
         )
     }
 

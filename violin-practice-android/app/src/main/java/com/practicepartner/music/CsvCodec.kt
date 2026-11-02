@@ -1,7 +1,6 @@
 package com.practicepartner.music
 
 import java.time.Instant
-import java.time.LocalDate
 import java.util.UUID
 
 data class CsvImportResult(
@@ -42,7 +41,7 @@ object CsvCodec {
                     task.id,
                     task.childProfileId,
                     task.instrument,
-                    task.assignedDate,
+                    task.assignedDate.value,
                     task.title,
                     task.sourceType.name,
                     task.source.takeIf { task.sourceType == SourceType.YOUTUBE }.orEmpty(),
@@ -75,7 +74,7 @@ object CsvCodec {
 
     fun decode(
         text: String,
-        defaultDate: String,
+        defaultDate: DateKey,
         childProfileId: String = "",
         instrument: String = "",
         idFactory: () -> String = { UUID.randomUUID().toString() },
@@ -112,7 +111,8 @@ object CsvCodec {
             val id = field("assignment_id").ifBlank(idFactory)
             val rowChildProfileId = field("student_id").ifBlank { childProfileId }
             val rowInstrument = field("instrument").ifBlank { instrument }
-            val date = field("date").ifBlank { defaultDate }
+            val dateText = field("date").ifBlank { defaultDate.value }
+            val date = runCatching { DateKey.parse(dateText) }.getOrNull()
             val title = field("title")
             val source = field("source")
             val declaredSourceType = field("reference_type")
@@ -156,7 +156,7 @@ object CsvCodec {
                 ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
 
             val error = when {
-                runCatching { LocalDate.parse(date) }.isFailure -> "invalid date"
+                date == null -> "invalid date"
                 title.isBlank() -> "missing title"
                 childProfileId.isNotBlank() &&
                     rowChildProfileId.isNotBlank() &&
@@ -202,7 +202,7 @@ object CsvCodec {
                     id = id,
                     childProfileId = rowChildProfileId,
                     instrument = rowInstrument,
-                    assignedDate = date,
+                    assignedDate = date!!,
                     title = title,
                     source = source,
                     sourceType = sourceType!!,

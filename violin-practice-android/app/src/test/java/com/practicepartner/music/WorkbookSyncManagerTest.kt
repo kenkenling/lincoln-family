@@ -82,12 +82,12 @@ class WorkbookSyncManagerTest {
 
     @Test
     fun workbookMergeDoesNotMoveAssignmentThatHasProgress() {
-        val existing = assignment(id = "assignment", assignedDate = "2026-11-01")
+        val existing = assignment(id = "assignment", assignedDate = DateKey("2026-11-01"))
         val snapshot = PracticeSnapshot(
             tasks = listOf(existing),
             progressByDate = mapOf(
-                "2026-11-01" to DailyProgress(
-                    date = "2026-11-01",
+                DateKey("2026-11-01") to DailyProgress(
+                    date = DateKey("2026-11-01"),
                     childProfileId = "child",
                     completedTaskIds = setOf(existing.id),
                 ),
@@ -95,7 +95,7 @@ class WorkbookSyncManagerTest {
         )
         val imported = workbookAssignment(
             id = existing.id,
-            assignedDate = "2026-11-02",
+            assignedDate = DateKey("2026-11-02"),
         )
 
         val result = mergeWorkbookAssignments(
@@ -128,7 +128,7 @@ class WorkbookSyncManagerTest {
             wallClock = { 1_234L },
             profileProvider = profile,
             snapshotProvider = { snapshot },
-            currentDateProvider = { "2026-11-01" },
+            currentDateProvider = { DateKey("2026-11-01") },
             activeTaskIdProvider = { null },
             recordingActiveProvider = { false },
             canReadContentUri = { true },
@@ -152,7 +152,7 @@ class WorkbookSyncManagerTest {
 
     private fun assignment(
         id: String,
-        assignedDate: String,
+        assignedDate: DateKey,
     ): PracticeTask = PracticeTask(
         id = id,
         childProfileId = "child",
@@ -168,7 +168,7 @@ class WorkbookSyncManagerTest {
 
     private fun workbookAssignment(
         id: String,
-        assignedDate: String,
+        assignedDate: DateKey,
     ): WorkbookAssignment = WorkbookAssignment(
         id = id,
         childProfileId = "child",

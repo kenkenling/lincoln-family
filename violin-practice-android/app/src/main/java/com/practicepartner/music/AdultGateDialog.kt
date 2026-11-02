@@ -74,6 +74,7 @@ fun AdultGateDialog(
                 style = MaterialTheme.typography.headlineSmall,
                 fontFamily = FontFamily.Cursive,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
             )
         },
         text = {
@@ -116,6 +117,7 @@ fun AdultGateDialog(
                 if (localError.isNotBlank()) {
                     Text(
                         localError,
+                        modifier = Modifier.assertiveLiveRegion(),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                     )

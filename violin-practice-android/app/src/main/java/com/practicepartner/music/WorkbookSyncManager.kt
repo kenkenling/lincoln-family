@@ -40,7 +40,7 @@ class WorkbookSyncManager(
     private val wallClock: () -> Long,
     private val profileProvider: () -> ChildProfile,
     private val snapshotProvider: () -> PracticeSnapshot,
-    private val currentDateProvider: () -> String,
+    private val currentDateProvider: () -> DateKey,
     private val activeTaskIdProvider: () -> String?,
     private val recordingActiveProvider: () -> Boolean,
     private val canReadContentUri: (String?) -> Boolean,
@@ -246,7 +246,7 @@ class WorkbookSyncManager(
 
     fun saveAssignment(
         taskId: String?,
-        assignedDateText: String,
+        assignedDate: DateKey,
         titleText: String,
         sourceText: String,
         startText: String,
@@ -262,7 +262,6 @@ class WorkbookSyncManager(
     ): Boolean {
         val profile = profileProvider()
         val snapshot = snapshotProvider()
-        val assignedDate = assignedDateText.trim()
         val title = titleText.trim()
         val source = sourceText.trim()
         val sourceType = sourceTypeFor(source)
@@ -270,10 +269,8 @@ class WorkbookSyncManager(
         val end = endText.trim().takeIf(String::isNotBlank)?.toIntOrNull()
         val repetitions = repetitionsText.trim().toIntOrNull()
         val targetMinutes = targetMinutesText.trim().toIntOrNull()
-        val parsedDate = runCatching { java.time.LocalDate.parse(assignedDate) }.getOrNull()
         val existingTask = taskId?.let { id -> snapshot.tasks.firstOrNull { it.id == id } }
         val error = when {
-            parsedDate == null -> "Choose a valid assignment date."
             title.isBlank() -> "Add a task title."
             title.length > 120 -> "Keep the task title under 120 characters."
             sourceType == null -> "Use a valid YouTube link or choose a video from this device."
@@ -377,7 +374,7 @@ class WorkbookSyncManager(
         enabledModes: Set<PracticeMode> = setOf(PracticeMode.PLAY_YOURSELF),
     ): Boolean = saveAssignment(
         taskId = null,
-        assignedDateText = currentDateProvider(),
+        assignedDate = currentDateProvider(),
         titleText = titleText,
         sourceText = sourceText,
         startText = startText,
@@ -392,7 +389,7 @@ class WorkbookSyncManager(
         enabledModes = enabledModes,
     )
 
-    fun importCsv(text: String, defaultDate: String = currentDateProvider()) {
+    fun importCsv(text: String, defaultDate: DateKey = currentDateProvider()) {
         val profile = profileProvider()
         val result = CsvCodec.decode(
             text = text,
@@ -459,7 +456,7 @@ class WorkbookSyncManager(
         )
     }
 
-    fun exportCsvForDate(date: String): String = CsvCodec.encode(
+    fun exportCsvForDate(date: DateKey): String = CsvCodec.encode(
         snapshotProvider().tasks.filter { it.assignedDate == date },
     )
 

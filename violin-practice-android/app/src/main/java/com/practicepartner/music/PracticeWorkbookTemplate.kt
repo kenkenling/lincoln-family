@@ -163,7 +163,7 @@ object PracticeWorkbookTemplate {
                             task.id,
                             task.childProfileId.ifBlank { profile.id },
                             task.instrument.ifBlank { profile.instrument },
-                            task.assignedDate,
+                            task.assignedDate.value,
                             task.title,
                             task.sourceType.name,
                             task.source.takeIf {
@@ -207,7 +207,7 @@ object PracticeWorkbookTemplate {
                 if (taskIds.isEmpty()) {
                     add(
                         listOf(
-                            progress.date,
+                            progress.date.value,
                             progress.childProfileId.ifBlank { profile.id },
                             profile.instrument,
                             "",
@@ -236,7 +236,7 @@ object PracticeWorkbookTemplate {
                             }
                         add(
                             listOf(
-                                progress.date,
+                                progress.date.value,
                                 progress.childProfileId.ifBlank { profile.id },
                                 task?.instrument?.ifBlank { profile.instrument }
                                     ?: profile.instrument,
@@ -278,7 +278,7 @@ object PracticeWorkbookTemplate {
                 val sessions = snapshot.sessions.filter { it.date == date }
                 add(
                     listOf(
-                        date,
+                        date.value,
                         profile.id,
                         profile.instrument,
                         progress.elapsedSeconds,
@@ -294,11 +294,11 @@ object PracticeWorkbookTemplate {
 
         val practiceSessionRows = buildList {
             add(practiceSessionHeaders)
-            snapshot.sessions.takeLast(500).forEach { session ->
+            snapshot.sessions.takeLast(MAX_PRACTICE_SESSIONS).forEach { session ->
                 add(
                     listOf(
                         session.id,
-                        session.date,
+                        session.date.value,
                         session.childProfileId.ifBlank { profile.id },
                         session.instrument.ifBlank { profile.instrument },
                         session.assignmentId,
@@ -332,11 +332,11 @@ object PracticeWorkbookTemplate {
 
         val eventRows = buildList {
             add(practiceLogHeaders)
-            snapshot.events.takeLast(500).forEach { event ->
+            snapshot.events.takeLast(MAX_PRACTICE_EVENTS).forEach { event ->
                 add(
                     listOf(
                         event.id,
-                        event.date,
+                        event.date.value,
                         event.childProfileId.ifBlank { profile.id },
                         taskById[event.taskId]?.instrument?.ifBlank { profile.instrument }
                             ?: profile.instrument,

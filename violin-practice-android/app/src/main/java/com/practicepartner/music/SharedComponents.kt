@@ -14,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -49,9 +48,15 @@ internal fun PracticeSessionStatus.summaryLabel(): String = when (this) {
     PracticeSessionStatus.INTERRUPTED -> "Interrupted safely"
 }
 
+internal fun PracticeSessionStatus.completionLabel(): String = when (this) {
+    PracticeSessionStatus.ACTIVE -> "In progress"
+    PracticeSessionStatus.COMPLETED -> "Practice goal reached"
+    PracticeSessionStatus.ENDED -> "Practice goal not reached"
+    PracticeSessionStatus.INTERRUPTED -> "Interrupted before completion"
+}
+
 internal fun timeLabel(seconds: Int): String =
     "%d:%02d".format(seconds / 60, seconds % 60)
 
-internal fun friendlyFullDate(date: String): String = runCatching {
-    LocalDate.parse(date).format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"))
-}.getOrDefault(date)
+internal fun friendlyFullDate(date: DateKey): String =
+    date.toLocalDate().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"))

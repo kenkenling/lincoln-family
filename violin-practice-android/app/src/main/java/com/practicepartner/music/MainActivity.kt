@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,34 +50,76 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 
+private val DateKeySaver = Saver<DateKey, String>(
+    save = { date -> date.value },
+    restore = { value -> runCatching { DateKey.parse(value) }.getOrNull() },
+)
+
 class MainActivity : ComponentActivity() {
-    private val practiceViewModel by viewModels<PracticeViewModel> {
+    private val practiceViewModelDelegate = viewModels<PracticeViewModel> {
         PracticeViewModel.factory(applicationContext)
+    }
+    private val practiceViewModel by practiceViewModelDelegate
+    private val privacyConsentStore by lazy(LazyThreadSafetyMode.NONE) {
+        PrivacyConsentStore(applicationContext)
+    }
+    private val appDataDeletionManager by lazy(LazyThreadSafetyMode.NONE) {
+        AppDataDeletionManager(applicationContext)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            var consentAccepted by remember {
+                mutableStateOf(privacyConsentStore.hasAcceptedCurrentPolicy())
+            }
             PracticePartnerTheme {
-                PracticeApp(practiceViewModel)
+                if (consentAccepted) {
+                    PracticeApp(
+                        viewModel = practiceViewModel,
+                        acceptedAgeRange = privacyConsentStore.acceptedAgeRange(),
+                        onDeleteAllData = appDataDeletionManager::deleteAllData,
+                    )
+                } else {
+                    PrivacyConsentScreen(
+                        onAccept = { ageRange ->
+                            privacyConsentStore.accept(
+                                ageRange = ageRange,
+                                parentConfirmed = true,
+                                privacyPolicyAccepted = true,
+                            ).also { accepted ->
+                                if (accepted) consentAccepted = true
+                            }
+                        },
+                        onExit = ::finish,
+                    )
+                }
             }
         }
     }
 
     override fun onStart() {
         super.onStart()
-        practiceViewModel.refreshDate()
-        practiceViewModel.resumeActivePractice()
+        if (privacyConsentStore.hasAcceptedCurrentPolicy()) {
+            practiceViewModel.refreshDate()
+            practiceViewModel.resumeActivePractice()
+        }
     }
 
     override fun onStop() {
-        practiceViewModel.pauseForBackground()
+        if (practiceViewModelDelegate.isInitialized()) {
+            practiceViewModel.pauseForBackground()
+        }
         super.onStop()
     }
 }
 
 @Composable
-private fun PracticeApp(viewModel: PracticeViewModel) {
+private fun PracticeApp(
+    viewModel: PracticeViewModel,
+    acceptedAgeRange: ChildAgeRange?,
+    onDeleteAllData: () -> Boolean,
+) {
     val context = LocalContext.current
     val state = viewModel.uiState
     val snackbarHostState = remember { SnackbarHostState() }
@@ -88,7 +131,10 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
     var showProfileDialog by rememberSaveable { mutableStateOf(false) }
     var showFamilyProfiles by rememberSaveable { mutableStateOf(false) }
     var showGrownUpTools by rememberSaveable { mutableStateOf(false) }
-    var csvDatePending by rememberSaveable { mutableStateOf(state.currentDate) }
+    var showPrivacySettings by rememberSaveable { mutableStateOf(false) }
+    var csvDatePending by rememberSaveable(stateSaver = DateKeySaver) {
+        mutableStateOf(state.currentDate)
+    }
     var profileArchivePendingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(viewModel.adultUnlocked) {
@@ -96,6 +142,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             showProfileDialog = false
             showFamilyProfiles = false
             showGrownUpTools = false
+            showPrivacySettings = false
         }
     }
 
@@ -316,6 +363,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                             onRecordingSaved = { viewModel.recordingSaved(activeTask, it) },
                             onRecordingChanged = viewModel::setRecordingActive,
                             onCompleteRepetition = { viewModel.recordRepetition(activeTask) },
+                            onSwitchMode = viewModel::switchPracticeMode,
                             onResumeTimer = viewModel::resumeActivePractice,
                             onOpenUri = ::openUri,
                             onFinish = { viewModel.finishPractice() },
@@ -363,14 +411,14 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
                                     csvDatePending = form.assignedDate
                                     if (viewModel.beginAdultExternalAction()) {
                                         exportCsv.launch(
-                                            "practice-assignment-${form.assignedDate}.csv",
+                                            "practice-assignment-${form.assignedDate.value}.csv",
                                         )
                                     }
                                 },
                                 onAdd = {
                                     val added = viewModel.saveAssignment(
                                         taskId = form.editingTaskId,
-                                        assignedDateText = form.assignedDate,
+                                        assignedDate = form.assignedDate,
                                         titleText = form.title,
                                         sourceText = form.source,
                                         startText = form.start,
@@ -435,6 +483,7 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
         GrownUpToolsDialog(
             currentPage = state.page,
             studentName = viewModel.studentProfile.name,
+            historyCapacityWarning = state.historyCapacityWarning,
             onOpenToday = {
                 showGrownUpTools = false
                 viewModel.setPage(AppPage.TODAY)
@@ -455,6 +504,10 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             onOpenProfile = {
                 showGrownUpTools = false
                 showProfileDialog = true
+            },
+            onOpenPrivacy = {
+                showGrownUpTools = false
+                showPrivacySettings = true
             },
             onDismiss = {
                 showGrownUpTools = false
@@ -515,6 +568,17 @@ private fun PracticeApp(viewModel: PracticeViewModel) {
             },
         )
     }
+
+    if (showPrivacySettings && viewModel.adultUnlocked) {
+        PrivacySettingsDialog(
+            acceptedAgeRange = acceptedAgeRange,
+            onDeleteAllData = onDeleteAllData,
+            onDismiss = {
+                showPrivacySettings = false
+                showGrownUpTools = true
+            },
+        )
+    }
 }
 
 @Composable
@@ -532,7 +596,7 @@ private fun AppHeader(
             IconButton(
                 onClick = onReturnToToday,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .background(CloudWhite.copy(alpha = 0.9f), CircleShape),
             ) {
                 Icon(
@@ -562,6 +626,7 @@ private fun AppHeader(
                 style = MaterialTheme.typography.headlineSmall,
                 color = Ink,
                 fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.accessibilityHeading(),
             )
         }
         if (state.activeTaskId != null) {

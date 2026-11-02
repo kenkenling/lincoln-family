@@ -1,7 +1,5 @@
 package com.practicepartner.music
 
-import android.content.Context
-import androidx.core.net.toUri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -9,11 +7,11 @@ import kotlinx.coroutines.withContext
 import java.util.UUID
 
 internal class ProfileDataManager(
-    private val appContext: Context,
     private val scope: CoroutineScope,
     private val store: PracticeDataStore,
     private val familyStore: FamilyDataStore,
     private val recordingManager: RecordingManager,
+    private val archiveDestination: ProfileArchiveDestination,
     private val wallClock: () -> Long,
     private val setMessage: (String) -> Unit,
 ) {
@@ -99,9 +97,7 @@ internal class ProfileDataManager(
                         .mapNotNull(PracticeEvent::videoPath)
                         .distinct()
                         .mapNotNull(recordingManager::managedRecordingFile)
-                    val output = appContext.contentResolver.openOutputStream(uri.toUri(), "wt")
-                        ?: error("The selected archive file could not be opened.")
-                    output.use {
+                    archiveDestination.open(uri).use {
                         ProfileArchiveWriter.write(
                             output = it,
                             profile = profile,

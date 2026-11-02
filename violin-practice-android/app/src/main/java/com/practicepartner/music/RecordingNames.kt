@@ -1,7 +1,6 @@
 package com.practicepartner.music
 
 import java.io.File
-import java.time.LocalDate
 
 private val currentRecordingName = Regex(
     """^(\d{4}-\d{2}-\d{2} - .+ - .+ - Take )(\d+)(\.mp4)$""",
@@ -12,12 +11,12 @@ private val repeatedWhitespace = Regex("""\s+""")
 private val repeatedDashes = Regex("""-{2,}""")
 
 fun practiceRecordingFileName(
-    practiceDate: String,
+    practiceDate: DateKey,
     studentName: String,
     assignmentTitle: String,
     takeNumber: Int,
 ): String {
-    val date = LocalDate.parse(practiceDate).toString()
+    val date = practiceDate.value
     val student = safeRecordingNamePart(studentName, fallback = "Student", maxLength = 48)
     val assignment = safeRecordingNamePart(
         assignmentTitle,
@@ -30,7 +29,7 @@ fun practiceRecordingFileName(
 
 fun nextRecordingTakeNumber(
     events: List<PracticeEvent>,
-    practiceDate: String,
+    practiceDate: DateKey,
     taskId: String,
 ): Int {
     val recordings = events.filter { event ->

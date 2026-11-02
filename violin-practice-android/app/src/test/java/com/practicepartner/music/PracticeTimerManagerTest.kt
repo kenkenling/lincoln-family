@@ -16,7 +16,7 @@ class PracticeTimerManagerTest {
         val task = PracticeTask(
             id = "assignment",
             childProfileId = "child",
-            assignedDate = "2026-11-01",
+            assignedDate = DateKey("2026-11-01"),
             title = "Scales",
             source = "",
             sourceType = SourceType.NONE,
@@ -32,7 +32,7 @@ class PracticeTimerManagerTest {
             assignmentId = task.id,
             assignmentTitle = task.title,
             instrument = "Violin",
-            date = "2026-11-01",
+            date = DateKey("2026-11-01"),
             mode = PracticeMode.PLAY_YOURSELF,
             startedAtMillis = 100L,
         )
@@ -47,7 +47,7 @@ class PracticeTimerManagerTest {
             profileProvider = {
                 ChildProfile(id = "child", name = "Lincoln", instrument = "Violin")
             },
-            dateProvider = { "2026-11-01" },
+            dateProvider = { DateKey("2026-11-01") },
             activeTaskProvider = { task },
             activeSessionIdProvider = { session.id },
             updateSnapshot = { transform -> snapshot = transform(snapshot) },
@@ -61,16 +61,16 @@ class PracticeTimerManagerTest {
 
         assertEquals(5L, manager.elapsed.value.elapsedSeconds)
         assertEquals(4L, manager.elapsed.value.sessionElapsedSeconds)
-        assertEquals(5L, snapshot.progressByDate.getValue("2026-11-01").elapsedSeconds)
+        assertEquals(5L, snapshot.progressByDate.getValue(DateKey("2026-11-01")).elapsedSeconds)
         assertEquals(4L, snapshot.sessions.single().elapsedSeconds)
-        assertFalse(task.id in snapshot.progressByDate.getValue("2026-11-01").completedTaskIds)
+        assertFalse(task.id in snapshot.progressByDate.getValue(DateKey("2026-11-01")).completedTaskIds)
 
         now += 1_000L
         val paused = manager.pause()
 
         assertEquals(6L, paused?.elapsedSeconds)
         assertEquals(5L, snapshot.sessions.single().elapsedSeconds)
-        assertTrue(task.id in snapshot.progressByDate.getValue("2026-11-01").completedTaskIds)
+        assertTrue(task.id in snapshot.progressByDate.getValue(DateKey("2026-11-01")).completedTaskIds)
         assertFalse(manager.isRunning)
     }
 
@@ -83,7 +83,7 @@ class PracticeTimerManagerTest {
             profileProvider = {
                 ChildProfile(id = "child", name = "Lincoln", instrument = "Violin")
             },
-            dateProvider = { "2026-11-01" },
+            dateProvider = { DateKey("2026-11-01") },
             activeTaskProvider = { null },
             activeSessionIdProvider = { null },
             updateSnapshot = {},

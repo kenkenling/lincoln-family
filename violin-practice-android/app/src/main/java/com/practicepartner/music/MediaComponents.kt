@@ -2,6 +2,7 @@ package com.practicepartner.music
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.MediaController
@@ -41,10 +42,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -117,7 +123,7 @@ private fun YouTubePlayer(task: PracticeTask) {
             <iframe
               width="100%"
               height="100%"
-              src="https://www.youtube.com/embed/$videoId?start=${task.startSeconds}$endParam&playsinline=1&controls=1&rel=0"
+              src="https://www.youtube-nocookie.com/embed/$videoId?start=${task.startSeconds}$endParam&playsinline=1&controls=1&rel=0"
               title="Teacher reference"
               frameborder="0"
               allow="encrypted-media; picture-in-picture; fullscreen"
@@ -131,6 +137,8 @@ private fun YouTubePlayer(task: PracticeTask) {
         modifier = Modifier.fillMaxSize(),
         factory = { context ->
             WebView(context).apply {
+                CookieManager.getInstance().setAcceptCookie(false)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
                 webViewClient = WebViewClient()
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
@@ -138,13 +146,25 @@ private fun YouTubePlayer(task: PracticeTask) {
                 settings.allowFileAccess = false
                 settings.allowContentAccess = false
                 tag = html
-                loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                loadDataWithBaseURL(
+                    "https://www.youtube-nocookie.com",
+                    html,
+                    "text/html",
+                    "UTF-8",
+                    null,
+                )
             }
         },
         update = { webView ->
             if (webView.tag != html) {
                 webView.tag = html
-                webView.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                webView.loadDataWithBaseURL(
+                    "https://www.youtube-nocookie.com",
+                    html,
+                    "text/html",
+                    "UTF-8",
+                    null,
+                )
             }
         },
         onRelease = { webView ->
@@ -336,9 +356,14 @@ fun CameraRecorderPanel(
         if (controller == null || isRecording || isStarting || countdown > 0) return
         countdownJob?.cancel()
         countdownJob = scope.launch {
-            for (value in 3 downTo 1) {
-                countdown = value
-                delay(1_000)
+            val skipCountdown = shouldSkipRecordingCountdown(
+                coroutineContext[MotionDurationScale]?.scaleFactor,
+            )
+            if (!skipCountdown) {
+                for (value in 3 downTo 1) {
+                    countdown = value
+                    delay(1_000)
+                }
             }
             countdown = 0
             startRecording()
@@ -390,7 +415,11 @@ fun CameraRecorderPanel(
                         color = Color.White,
                     )
                     else -> AndroidView(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clearAndSetSemantics {
+                                contentDescription = "Camera preview"
+                            },
                         factory = { viewContext ->
                             PreviewView(viewContext).apply {
                                 scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -403,7 +432,13 @@ fun CameraRecorderPanel(
                 }
                 if (countdown > 0) {
                     Box(
-                        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.58f)),
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.58f))
+                            .clearAndSetSemantics {
+                                contentDescription = "Recording starts in $countdown"
+                                liveRegion = LiveRegionMode.Assertive
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -458,7 +493,12 @@ fun CameraRecorderPanel(
             }
 
             if (recordingMessage.isNotBlank()) {
-                Text(recordingMessage, color = Muted, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    recordingMessage,
+                    modifier = Modifier.politeLiveRegion(),
+                    color = Muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
             Text(
                 "Video name: $recordingFileName",

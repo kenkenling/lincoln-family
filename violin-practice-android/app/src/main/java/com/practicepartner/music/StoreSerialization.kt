@@ -24,8 +24,8 @@ internal object PracticeSnapshotJsonCodec {
             StoredPracticeSnapshot(
                 tasks = snapshot.tasks,
                 progress = snapshot.progressByDate.values.sortedBy(DailyProgress::date),
-                events = snapshot.events.takeLast(MAX_STORED_RECORDS),
-                sessions = snapshot.sessions.takeLast(MAX_STORED_RECORDS),
+                events = snapshot.events.takeLast(MAX_PRACTICE_EVENTS),
+                sessions = snapshot.sessions.takeLast(MAX_PRACTICE_SESSIONS),
             ),
         )
 
@@ -38,7 +38,6 @@ internal object PracticeSnapshotJsonCodec {
             val storedModes = row.jsonObject["enabledModes"]
             task.copy(
                 id = task.id.trim().also { require(it.isNotBlank()) },
-                assignedDate = task.assignedDate.ifBlank { currentDateKey() },
                 title = task.title.trim().also { require(it.isNotBlank()) },
                 source = task.source.trim(),
                 startSeconds = task.startSeconds.coerceAtLeast(0),
@@ -58,7 +57,6 @@ internal object PracticeSnapshotJsonCodec {
         }
         val progress = decodeRows<DailyProgress>(stored.progress) { item, _ ->
             item.copy(
-                date = item.date.also { require(it.isNotBlank()) },
                 repetitionsByTask = item.repetitionsByTask.mapValues { (_, count) ->
                     count.coerceAtLeast(0)
                 },
@@ -68,7 +66,6 @@ internal object PracticeSnapshotJsonCodec {
         val events = decodeRows<PracticeEvent>(stored.events) { event, _ ->
             event.copy(
                 id = event.id.ifBlank { UUID.randomUUID().toString() },
-                date = event.date.ifBlank { dateKeyForMillis(event.atMillis) },
                 videoFileName = event.videoFileName
                     ?: recordingFileNameFromPath(event.videoPath),
             )
@@ -77,7 +74,7 @@ internal object PracticeSnapshotJsonCodec {
             session.copy(
                 id = session.id.also { require(it.isNotBlank()) },
                 assignmentId = session.assignmentId.also { require(it.isNotBlank()) },
-                date = session.date.also { require(it.isNotBlank()) },
+                modesUsed = session.resolvedModesUsed(),
                 repetitionsCompleted = session.repetitionsCompleted.coerceAtLeast(0),
                 assignmentRevision = session.assignmentRevision.coerceAtLeast(1),
                 targetRepetitions = session.targetRepetitions.coerceAtLeast(1),
@@ -89,8 +86,8 @@ internal object PracticeSnapshotJsonCodec {
             snapshot = PracticeSnapshot(
                 tasks = tasks.values,
                 progressByDate = progress.values.associateBy(DailyProgress::date),
-                events = events.values.takeLast(MAX_STORED_RECORDS),
-                sessions = sessions.values.takeLast(MAX_STORED_RECORDS),
+                events = events.values.takeLast(MAX_PRACTICE_EVENTS),
+                sessions = sessions.values.takeLast(MAX_PRACTICE_SESSIONS),
             ).scopedTo(profile),
             skippedRecords =
                 tasks.skipped + progress.skipped + events.skipped + sessions.skipped,
@@ -192,6 +189,5 @@ internal data class DecodedPracticeSnapshot(
     val skippedRecords: Int,
 )
 
-private const val PRACTICE_SNAPSHOT_VERSION = 7
+private const val PRACTICE_SNAPSHOT_VERSION = 9
 private const val HOUSEHOLD_VERSION = 1
-private const val MAX_STORED_RECORDS = 500

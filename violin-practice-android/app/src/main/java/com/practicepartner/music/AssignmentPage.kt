@@ -37,7 +37,7 @@ import java.time.LocalDate
 
 data class AssignmentForm(
     val editingTaskId: String? = null,
-    val assignedDate: String = currentDateKey(),
+    val assignedDate: DateKey = currentDateKey(),
     val title: String = "",
     val source: String = "",
     val start: String = "",
@@ -99,8 +99,7 @@ fun AssignmentPage(
     onRemove: (PracticeTask) -> Unit,
 ) {
     val context = LocalContext.current
-    val selectedDate = runCatching { LocalDate.parse(form.assignedDate) }
-        .getOrDefault(LocalDate.now())
+    val selectedDate = form.assignedDate.toLocalDate()
     val assignmentsForDate = state.tasksForDate(form.assignedDate)
     val archivedAssignmentsForDate = state.archivedTasksForDate(form.assignedDate)
     val templates = assignmentTemplatesFor(instrument)
@@ -110,7 +109,7 @@ fun AssignmentPage(
         DatePickerDialog(
             context,
             { _, year, month, day ->
-                val date = LocalDate.of(year, month + 1, day).toString()
+                val date = DateKey.from(LocalDate.of(year, month + 1, day))
                 onFormChanged(form.copy(assignedDate = date))
             },
             selectedDate.year,
@@ -149,6 +148,7 @@ fun AssignmentPage(
                         if (assignmentsForDate.size == 1) "" else "s",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.accessibilityHeading(),
                 )
             }
             items(assignmentsForDate, key = { "assignment-${it.id}" }) { task ->
@@ -165,6 +165,7 @@ fun AssignmentPage(
                         "Archived · ${archivedAssignmentsForDate.size}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
+                        modifier = Modifier.accessibilityHeading(),
                     )
                 }
                 items(
@@ -211,6 +212,7 @@ private fun AssignmentRow(
     onRemove: () -> Unit,
 ) {
     Card(
+        modifier = Modifier.mergeForAccessibility(),
         colors = CardDefaults.cardColors(containerColor = Paper),
         shape = RoundedCornerShape(16.dp),
     ) {
@@ -271,6 +273,7 @@ private fun ArchivedAssignmentRow(
     onRemove: () -> Unit,
 ) {
     Card(
+        modifier = Modifier.mergeForAccessibility(),
         colors = CardDefaults.cardColors(
             containerColor = CloudWhite.copy(alpha = 0.72f),
         ),
@@ -355,7 +358,12 @@ private fun AssignmentRemovalDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Remove assignment?") },
+        title = {
+            Text(
+                "Remove assignment?",
+                modifier = Modifier.accessibilityHeading(),
+            )
+        },
         text = {
             Text(
                 "This removes “${task.title}” and its recorded completion state. " +

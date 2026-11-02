@@ -3,7 +3,10 @@ package com.practicepartner.music
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +18,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -24,9 +29,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import java.io.File
 
@@ -39,6 +46,7 @@ fun PracticeSessionPage(
     onRecordingSaved: (RecordingFile) -> Unit,
     onRecordingChanged: (Boolean) -> Unit,
     onCompleteRepetition: () -> Unit,
+    onSwitchMode: (PracticeMode) -> Unit,
     onResumeTimer: () -> Unit,
     onOpenUri: (Uri, String) -> Unit,
     onFinish: () -> Unit,
@@ -58,6 +66,7 @@ fun PracticeSessionPage(
         assignmentTitle = task.title,
         takeNumber = nextTakeNumber,
     )
+    val availableModes = task.availablePracticeModes()
 
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
@@ -77,25 +86,36 @@ fun PracticeSessionPage(
                         color = Paper,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
+                        modifier = Modifier.accessibilityHeading(),
                     )
                     Text(
-                        "${task.assignmentType.label} · ${state.mode.label}",
-                        color = Paper.copy(alpha = 0.82f),
+                        "${task.assignmentType.label} · ${state.mode.kidLabel()}",
+                        color = Paper,
                     )
                     Text(
                         state.progressLabel(task, state.currentDate) + " · " +
                             "${formatDuration(state.activeSessionElapsedSeconds)} this session",
-                        color = Paper.copy(alpha = 0.82f),
+                        color = Paper,
                     )
                     if (task.sourceType != SourceType.NONE) {
                         Text(
                             "Reference clip ${timeLabel(task.startSeconds)}–" +
                                 "${task.endSeconds?.let(::timeLabel) ?: "end"}",
-                            color = Paper.copy(alpha = 0.76f),
+                            color = Paper,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
+            }
+        }
+
+        if (shouldShowPracticeModeStepIndicator(availableModes)) {
+            item {
+                PracticeModeStepIndicator(
+                    modes = availableModes,
+                    activeMode = state.mode,
+                    onSelectMode = onSwitchMode,
+                )
             }
         }
 
@@ -164,6 +184,7 @@ fun PracticeSessionPage(
                     color = Forest,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.accessibilityHeading(),
                 )
                 ReferenceVideoPanel(task)
             }
@@ -176,6 +197,7 @@ fun PracticeSessionPage(
                     color = Forest,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.accessibilityHeading(),
                 )
                 CameraRecorderPanel(
                     recordingFileName = recordingFileName,
@@ -283,14 +305,95 @@ fun PracticeSessionPage(
     }
 }
 
+internal fun shouldShowPracticeModeStepIndicator(modes: List<PracticeMode>): Boolean =
+    modes.size > 1
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun PracticeModeStepIndicator(
+    modes: List<PracticeMode>,
+    activeMode: PracticeMode,
+    onSelectMode: (PracticeMode) -> Unit,
+) {
+    if (modes.size <= 1) return
+    Card(
+        colors = CardDefaults.cardColors(containerColor = CloudWhite),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "Practice steps",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
+            )
+            Text(
+                "Choose any step. Your timer and repetition count keep going.",
+                color = Muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                modes.forEachIndexed { index, mode ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (index > 0) {
+                            Text(
+                                "→",
+                                color = Muted,
+                                modifier = Modifier.hideFromAccessibility(),
+                            )
+                        }
+                        FilterChip(
+                            selected = activeMode == mode,
+                            onClick = { onSelectMode(mode) },
+                            leadingIcon = {
+                                Text(
+                                    mode.kidEmoji(),
+                                    modifier = Modifier.hideFromAccessibility(),
+                                    fontSize = 16.sp,
+                                )
+                            },
+                            label = { Text(mode.kidLabel()) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = CloudBlue.copy(alpha = 0.7f),
+                                selectedContainerColor = SunYellow,
+                                selectedLabelColor = Ink,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun PracticeReflectionDialog(
     session: PracticeSession,
-    onSubmit: (PracticeReflection?) -> Unit,
+    onSubmit: (PracticeReflection?, Boolean) -> Unit,
 ) {
+    var selectedReflection by remember(session.id) {
+        mutableStateOf(session.reflection)
+    }
+    var studentConfident by remember(session.id) {
+        mutableStateOf(session.masteryStatus == MasteryStatus.STUDENT_CONFIDENT)
+    }
     AlertDialog(
-        onDismissRequest = { onSubmit(null) },
-        title = { Text("How did that practice feel?") },
+        onDismissRequest = { onSubmit(null, false) },
+        title = {
+            Text(
+                "How did that practice feel?",
+                modifier = Modifier.accessibilityHeading(),
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -299,30 +402,54 @@ fun PracticeReflectionDialog(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 PracticeReflection.entries.forEach { reflection ->
-                    OutlinedButton(
-                        onClick = { onSubmit(reflection) },
+                    FilterChip(
+                        selected = selectedReflection == reflection,
+                        onClick = { selectedReflection = reflection },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            when (reflection) {
-                                PracticeReflection.PROUD -> "😊  ${reflection.kidLabel}"
-                                PracticeReflection.MAKING_PROGRESS ->
-                                    "🙂  ${reflection.kidLabel}"
-                                PracticeReflection.NEED_HELP -> "🤔  ${reflection.kidLabel}"
-                            },
-                        )
-                    }
+                        leadingIcon = {
+                            Text(
+                                when (reflection) {
+                                    PracticeReflection.PROUD -> "😊"
+                                    PracticeReflection.MAKING_PROGRESS -> "🙂"
+                                    PracticeReflection.NEED_HELP -> "🤔"
+                                },
+                                modifier = Modifier.hideFromAccessibility(),
+                            )
+                        },
+                        label = { Text(reflection.kidLabel) },
+                    )
                 }
                 Text(
-                    "There is no score. This just helps a grown-up know what support would be useful.",
+                    "Confidence (optional)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                FilterChip(
+                    selected = studentConfident,
+                    onClick = { studentConfident = !studentConfident },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        Text("⭐", modifier = Modifier.hideFromAccessibility())
+                    },
+                    label = { Text("I feel confident playing this") },
+                )
+                Text(
+                    "Finishing the practice goal and mastering the music are different. Confidence can grow with more practice.",
                     color = Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            Button(
+                onClick = { onSubmit(selectedReflection, studentConfident) },
+                enabled = selectedReflection != null || studentConfident,
+            ) {
+                Text("Save reflection")
+            }
+        },
         dismissButton = {
-            TextButton(onClick = { onSubmit(null) }) {
+            TextButton(onClick = { onSubmit(null, false) }) {
                 Text("Skip")
             }
         },

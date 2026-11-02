@@ -14,15 +14,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
-import org.robolectric.annotation.Config
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
 class PracticeViewModelTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
@@ -32,6 +27,37 @@ class PracticeViewModelTest {
     @After
     fun cancelScopes() {
         scopes.forEach(CoroutineScope::cancel)
+    }
+
+    @Test
+    fun injectedFactoryCreatesViewModelWithoutAndroidContext() {
+        val profile = profile()
+        val practiceStore = ViewModelPracticeStoreFake(emptyMap())
+        val familyStore = ViewModelFamilyStoreFake(
+            Household(
+                id = "household",
+                childProfiles = listOf(profile),
+                activeChildProfileId = profile.id,
+            ),
+        )
+        val recordingDirectory = temporaryFolder.newFolder("factory-recordings")
+
+        val factory = PracticeViewModel.factory(
+            store = practiceStore,
+            familyStore = familyStore,
+            localWorkbookStore = ViewModelWorkbookStoreFake(),
+            recordingManager = RecordingManager(
+                managedDirectoriesProvider = { listOf(recordingDirectory) },
+            ),
+            profileArchiveDestination = ProfileArchiveDestination {
+                ByteArrayOutputStream()
+            },
+        )
+
+        val viewModel = factory.create(PracticeViewModel::class.java)
+
+        assertEquals(profile.id, viewModel.studentProfile.id)
+        assertEquals(profile.id, viewModel.uiState.activeChildProfileId)
     }
 
     @Test
@@ -59,6 +85,53 @@ class PracticeViewModelTest {
         assertNull(state.activeTaskId)
         assertNull(state.activeSessionId)
         assertEquals(session.id, state.pendingReflectionSessionId)
+    }
+
+    @Test
+    fun switchPracticeModeKeepsTimerAndProgressAndTracksEveryStepUsed() {
+        val profile = profile()
+        val task = task(profile = profile, repetitions = 3).copy(
+            source = "https://youtu.be/VZIWCt-jW6g",
+            sourceType = SourceType.YOUTUBE,
+            enabledModes = PracticeMode.entries.toSet(),
+        )
+        val fixture = fixture(
+            profiles = listOf(profile),
+            snapshots = mapOf(profile.id to PracticeSnapshot(tasks = listOf(task))),
+        )
+
+        fixture.viewModel.setMode(PracticeMode.LISTEN)
+        fixture.viewModel.startPractice(task)
+        fixture.viewModel.recordRepetition(task)
+        fixture.clock.elapsedRealtimeMillis += 5_000L
+        fixture.ticker.tick()
+        val stateBeforeSwitch = fixture.viewModel.uiState
+
+        assertTrue(fixture.viewModel.switchPracticeMode(PracticeMode.LISTEN_AND_PLAY))
+        assertTrue(fixture.viewModel.switchPracticeMode(PracticeMode.PLAY_YOURSELF))
+
+        val state = fixture.viewModel.uiState
+        val session = state.snapshot.sessions.single()
+        assertEquals(stateBeforeSwitch.activeTaskId, state.activeTaskId)
+        assertEquals(stateBeforeSwitch.activeSessionId, state.activeSessionId)
+        assertTrue(state.running)
+        assertEquals(stateBeforeSwitch.elapsedSeconds, state.elapsedSeconds)
+        assertEquals(
+            stateBeforeSwitch.activeSessionElapsedSeconds,
+            state.activeSessionElapsedSeconds,
+        )
+        assertEquals(1, state.todayProgress.repetitionsFor(task.id))
+        assertEquals(1, session.repetitionsCompleted)
+        assertEquals(PracticeMode.PLAY_YOURSELF, state.mode)
+        assertEquals(PracticeMode.PLAY_YOURSELF, session.mode)
+        assertEquals(PracticeMode.entries.toSet(), session.modesUsed)
+        assertEquals(PracticeMode.entries.toSet(), state.activeSessionModesUsed)
+        assertEquals(
+            listOf("Switched to Play along", "Switched to Play solo"),
+            state.snapshot.events
+                .map(PracticeEvent::event)
+                .filter { it.startsWith("Switched to") },
+        )
     }
 
     @Test
@@ -100,15 +173,15 @@ class PracticeViewModelTest {
         fixture.viewModel.recordRepetition(task)
         fixture.clock.elapsedRealtimeMillis += 7_000L
         fixture.ticker.tick()
-        fixture.clock.currentDate = "2026-11-02"
+        fixture.clock.currentDate = DateKey("2026-11-02")
         fixture.clock.wallClockMillis += 7_000L
 
         fixture.viewModel.refreshDate()
 
         val state = fixture.viewModel.uiState
-        val oldProgress = state.snapshot.progressByDate.getValue("2026-11-01")
+        val oldProgress = state.snapshot.progressByDate.getValue(DateKey("2026-11-01"))
         val session = state.snapshot.sessions.single()
-        assertEquals("2026-11-02", state.currentDate)
+        assertEquals(DateKey("2026-11-02"), state.currentDate)
         assertFalse(state.running)
         assertNull(state.activeTaskId)
         assertNull(state.activeSessionId)
@@ -129,7 +202,7 @@ class PracticeViewModelTest {
         assertTrue(
             fixture.viewModel.saveAssignment(
                 taskId = null,
-                assignedDateText = "2026-11-01",
+                assignedDate = DateKey("2026-11-01"),
                 titleText = "Open strings",
                 sourceText = "",
                 startText = "0",
@@ -151,7 +224,7 @@ class PracticeViewModelTest {
         assertTrue(
             fixture.viewModel.saveAssignment(
                 taskId = created.id,
-                assignedDateText = created.assignedDate,
+                assignedDate = created.assignedDate,
                 titleText = "Open strings slowly",
                 sourceText = created.source,
                 startText = created.startSeconds.toString(),
@@ -218,7 +291,7 @@ class PracticeViewModelTest {
         val recordingFile = File(
             recordingDirectory,
             practiceRecordingFileName(
-                practiceDate = "2026-11-01",
+                practiceDate = DateKey("2026-11-01"),
                 studentName = second.name,
                 assignmentTitle = "Boreas",
                 takeNumber = 1,
@@ -229,7 +302,7 @@ class PracticeViewModelTest {
             events = listOf(
                 PracticeEvent(
                     id = "recording-event",
-                    date = "2026-11-01",
+                    date = DateKey("2026-11-01"),
                     taskId = "boreas",
                     taskTitle = "Boreas",
                     event = "Practice take saved privately",
@@ -359,7 +432,7 @@ class PracticeViewModelTest {
             profile = profile,
             id = "old-task",
             title = "Old scales",
-            date = "2026-10-30",
+            date = DateKey("2026-10-30"),
         )
         val todayTask = task(profile = profile, id = "today-task")
         val fixture = fixture(
@@ -371,12 +444,12 @@ class PracticeViewModelTest {
         unlockAdultSpace(fixture.viewModel)
 
         fixture.viewModel.showPreviousSummaryDate()
-        assertEquals("2026-10-30", fixture.viewModel.uiState.summaryDate)
+        assertEquals(DateKey("2026-10-30"), fixture.viewModel.uiState.summaryDate)
         fixture.viewModel.showNextSummaryDate()
-        assertEquals("2026-11-01", fixture.viewModel.uiState.summaryDate)
+        assertEquals(DateKey("2026-11-01"), fixture.viewModel.uiState.summaryDate)
         fixture.viewModel.showPreviousSummaryDate()
         fixture.viewModel.showTodaySummary()
-        assertEquals("2026-11-01", fixture.viewModel.uiState.summaryDate)
+        assertEquals(DateKey("2026-11-01"), fixture.viewModel.uiState.summaryDate)
 
         fixture.viewModel.setMode(PracticeMode.PLAY_YOURSELF)
         assertEquals(PracticeMode.PLAY_YOURSELF, fixture.viewModel.uiState.mode)
@@ -417,7 +490,7 @@ class PracticeViewModelTest {
         )
         val created = fixture.viewModel.uiState.snapshot.tasks.single()
         val csv = fixture.viewModel.exportTodayCsv()
-        assertEquals(csv, fixture.viewModel.exportCsvForDate("2026-11-01"))
+        assertEquals(csv, fixture.viewModel.exportCsvForDate(DateKey("2026-11-01")))
         assertTrue(csv.contains("Bow hold"))
 
         fixture.viewModel.archiveTask(created)
@@ -500,7 +573,7 @@ class PracticeViewModelTest {
         fixture.viewModel.setRecordingActive(false)
 
         val recordingName = practiceRecordingFileName(
-            practiceDate = "2026-11-01",
+            practiceDate = DateKey("2026-11-01"),
             studentName = profile.name,
             assignmentTitle = task.title,
             takeNumber = 1,
@@ -517,10 +590,14 @@ class PracticeViewModelTest {
         )
         fixture.viewModel.toggleCompleted(task)
         assertTrue(fixture.viewModel.finishPractice())
-        fixture.viewModel.submitReflection(PracticeReflection.PROUD)
+        fixture.viewModel.submitReflection(
+            PracticeReflection.PROUD,
+            studentConfident = true,
+        )
 
         val session = fixture.viewModel.uiState.snapshot.sessions.single()
         assertEquals(PracticeReflection.PROUD, session.reflection)
+        assertEquals(MasteryStatus.STUDENT_CONFIDENT, session.masteryStatus)
         val outsideRecording = temporaryFolder.newFile("outside-recording.mp4")
         assertFalse(
             fixture.viewModel.deleteRecording(outsideRecording.absolutePath),
@@ -533,7 +610,7 @@ class PracticeViewModelTest {
         val undeletable = File(
             recordingFile.parentFile,
             practiceRecordingFileName(
-                practiceDate = "2026-11-01",
+                practiceDate = DateKey("2026-11-01"),
                 studentName = profile.name,
                 assignmentTitle = task.title,
                 takeNumber = 2,
@@ -611,14 +688,16 @@ class PracticeViewModelTest {
             contentUriReadable = { true },
         )
         val viewModel = PracticeViewModel(
-            appContext = RuntimeEnvironment.getApplication(),
             store = practiceStore,
             familyStore = familyStore,
             localWorkbookStore = workbookStore,
+            recordingManager = recordingManager,
+            profileArchiveDestination = ProfileArchiveDestination {
+                ByteArrayOutputStream()
+            },
             elapsedRealtime = { clock.elapsedRealtimeMillis },
             wallClock = { clock.wallClockMillis },
             dateProvider = { clock.currentDate },
-            recordingManager = recordingManager,
             coroutineScope = scope,
             timerTicker = ticker,
         )
@@ -649,7 +728,7 @@ class PracticeViewModelTest {
         profile: ChildProfile,
         id: String = "assignment",
         title: String = "Scales",
-        date: String = "2026-11-01",
+        date: DateKey = DateKey("2026-11-01"),
         repetitions: Int = 2,
     ): PracticeTask = PracticeTask(
         id = id,
@@ -721,7 +800,7 @@ private data class ViewModelFixture(
 )
 
 private class ViewModelClock(
-    var currentDate: String = "2026-11-01",
+    var currentDate: DateKey = DateKey("2026-11-01"),
     var elapsedRealtimeMillis: Long = 1_000L,
     var wallClockMillis: Long = 1_000_000L,
 )
@@ -748,12 +827,12 @@ private class ViewModelPracticeStoreFake(
 
     override fun load(
         profile: ChildProfile,
-        currentDate: String,
+        currentDate: DateKey,
     ): PracticeSnapshot = snapshotsByProfile[profile.id] ?: PracticeSnapshot()
 
     override fun loadWithStatus(
         profile: ChildProfile,
-        currentDate: String,
+        currentDate: DateKey,
     ): PracticeLoadResult = PracticeLoadResult(load(profile, currentDate))
 
     override fun save(profile: ChildProfile, snapshot: PracticeSnapshot) {

@@ -1,8 +1,7 @@
 package com.practicepartner.music
 
-internal fun friendlyDate(date: String): String = runCatching {
-    java.time.LocalDate.parse(date).format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
-}.getOrDefault(date)
+internal fun friendlyDate(date: DateKey): String =
+    date.toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
 
 internal fun assignmentKey(task: PracticeTask): AssignmentKey =
     AssignmentKey(
@@ -18,7 +17,7 @@ internal fun assignmentKey(task: PracticeTask): AssignmentKey =
     )
 
 internal data class AssignmentKey(
-    val date: String,
+    val date: DateKey,
     val title: String,
     val source: String,
     val startSeconds: Int,

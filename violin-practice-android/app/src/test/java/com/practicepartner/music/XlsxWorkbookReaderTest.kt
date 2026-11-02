@@ -14,7 +14,7 @@ class XlsxWorkbookReaderTest {
     fun readsAssignmentsWrittenByCurrentTemplate() {
         val youtube = PracticeTask(
             id = "youtube",
-            assignedDate = "2026-11-01",
+            assignedDate = DateKey("2026-11-01"),
             title = "Tremolo",
             source = "https://youtu.be/VZIWCt-jW6g",
             sourceType = SourceType.YOUTUBE,
@@ -108,7 +108,7 @@ class XlsxWorkbookReaderTest {
         val result = XlsxWorkbookReader.readAssignments(ByteArrayInputStream(bytes))
 
         assertTrue(result.errors.isEmpty())
-        assertEquals(expectedDate.toString(), result.assignments.single().assignedDate)
+        assertEquals(DateKey.from(expectedDate), result.assignments.single().assignedDate)
     }
 
     @Test
@@ -167,7 +167,7 @@ class XlsxWorkbookReaderTest {
             id = "time",
             childProfileId = "profile",
             instrument = "Violin",
-            assignedDate = "2026-11-01",
+            assignedDate = DateKey("2026-11-01"),
             title = "Boreas passage",
             source = "https://youtu.be/VZIWCt-jW6g",
             sourceType = SourceType.YOUTUBE,

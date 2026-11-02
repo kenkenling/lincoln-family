@@ -3,12 +3,12 @@ package com.practicepartner.music
 interface PracticeDataStore {
     fun load(
         profile: ChildProfile,
-        currentDate: String = currentDateKey(),
+        currentDate: DateKey = currentDateKey(),
     ): PracticeSnapshot
 
     fun loadWithStatus(
         profile: ChildProfile,
-        currentDate: String = currentDateKey(),
+        currentDate: DateKey = currentDateKey(),
     ): PracticeLoadResult
 
     fun save(profile: ChildProfile, snapshot: PracticeSnapshot)

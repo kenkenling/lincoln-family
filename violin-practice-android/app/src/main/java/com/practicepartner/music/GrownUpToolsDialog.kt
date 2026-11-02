@@ -19,7 +19,9 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.SupervisorAccount
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,11 +41,13 @@ import androidx.compose.ui.unit.dp
 fun GrownUpToolsDialog(
     currentPage: AppPage,
     studentName: String,
+    historyCapacityWarning: String?,
     onOpenToday: () -> Unit,
     onOpenAssignments: () -> Unit,
     onOpenSummary: () -> Unit,
     onManageProfiles: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenPrivacy: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val firstName = studentName.trim().substringBefore(' ').ifBlank { "the student" }
@@ -65,6 +69,7 @@ fun GrownUpToolsDialog(
                     style = MaterialTheme.typography.headlineSmall,
                     fontFamily = FontFamily.Cursive,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.accessibilityHeading(),
                 )
                 Text(
                     "For parents and coaches",
@@ -81,6 +86,9 @@ fun GrownUpToolsDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                historyCapacityWarning?.let {
+                    HistoryCapacityWarning(it)
+                }
                 GrownUpToolButton(
                     title = "Today’s practice",
                     detail = "Return to $firstName’s simple practice screen.",
@@ -119,6 +127,13 @@ fun GrownUpToolsDialog(
                     iconBackground = MintCloud,
                     onClick = onOpenProfile,
                 )
+                GrownUpToolButton(
+                    title = "Privacy & data",
+                    detail = "Read the policy or permanently delete all app data.",
+                    icon = Icons.Default.PrivacyTip,
+                    iconBackground = LavenderCloud,
+                    onClick = onOpenPrivacy,
+                )
             }
         },
         confirmButton = {
@@ -127,6 +142,41 @@ fun GrownUpToolsDialog(
             }
         },
     )
+}
+
+@Composable
+private fun HistoryCapacityWarning(message: String) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .mergeForAccessibility(),
+        color = Amber.copy(alpha = 0.22f),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Amber),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(13.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                Icons.Default.WarningAmber,
+                contentDescription = null,
+                tint = Danger,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    "Practice history storage notice",
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    message,
+                    color = Ink,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -140,7 +190,9 @@ private fun GrownUpToolButton(
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .mergeForAccessibility(),
         color = if (selected) CloudBlue else CloudWhite,
         shape = RoundedCornerShape(22.dp),
         border = BorderStroke(

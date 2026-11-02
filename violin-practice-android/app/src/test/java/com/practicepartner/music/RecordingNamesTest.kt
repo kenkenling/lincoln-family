@@ -11,7 +11,7 @@ class RecordingNamesTest {
         assertEquals(
             "2026-10-31 - Lincoln - Boreas Violin 2 - Take 01.mp4",
             practiceRecordingFileName(
-                practiceDate = "2026-10-31",
+                practiceDate = DateKey("2026-10-31"),
                 studentName = "Lincoln",
                 assignmentTitle = "Boreas Violin 2",
                 takeNumber = 1,
@@ -24,7 +24,7 @@ class RecordingNamesTest {
         assertEquals(
             "2026-10-31 - Lincoln-Mom - Boreas-Violin 2-mm. 1-2 - Take 02.mp4",
             practiceRecordingFileName(
-                practiceDate = "2026-10-31",
+                practiceDate = DateKey("2026-10-31"),
                 studentName = " Lincoln / Mom ",
                 assignmentTitle = "Boreas - Violin 2: mm. 1/2?",
                 takeNumber = 2,
@@ -54,7 +54,7 @@ class RecordingNamesTest {
             4,
             nextRecordingTakeNumber(
                 events = events,
-                practiceDate = "2026-10-31",
+                practiceDate = DateKey("2026-10-31"),
                 taskId = "shifting",
             ),
         )
@@ -78,7 +78,7 @@ class RecordingNamesTest {
         fileName: String,
     ): PracticeEvent = PracticeEvent(
         id = id,
-        date = "2026-10-31",
+        date = DateKey("2026-10-31"),
         taskId = taskId,
         taskTitle = "Shifting",
         event = "Practice take saved privately",

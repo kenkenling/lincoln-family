@@ -16,24 +16,24 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 
 val Ink = Color(0xFF17324D)
-val Muted = Color(0xFF5D7890)
+val Muted = Color(0xFF4F687E)
 val Cream = Color(0xFFEDF9FF)
 val Paper = Color(0xFFFFFFFF)
-val Forest = Color(0xFF287BC1)
+val Forest = Color(0xFF1E67A2)
 val Sage = Color(0xFFDDF3FF)
 val Amber = Color(0xFFFFC857)
-val Danger = Color(0xFFC94F5C)
+val Danger = Color(0xFFC04654)
 
 val SkyTop = Color(0xFFBDEBFF)
 val SkyBottom = Color(0xFFF1FAFF)
-val SkyBlue = Color(0xFF72C9F4)
-val DeepSky = Color(0xFF287BC1)
+val SkyBlue = Color(0xFF3679AB)
+val DeepSky = Color(0xFF1E67A2)
 val CloudBlue = Color(0xFFDDF3FF)
 val CloudWhite = Color(0xFFFFFEFF)
 val SunYellow = Color(0xFFFFD166)
 val MintCloud = Color(0xFFDFF7EE)
 val LavenderCloud = Color(0xFFEDE8FF)
-val SkyOutline = Color(0xFFA8DDF5)
+val SkyOutline = Color(0xFF5D91AB)
 
 private val practiceColors = lightColorScheme(
     primary = DeepSky,

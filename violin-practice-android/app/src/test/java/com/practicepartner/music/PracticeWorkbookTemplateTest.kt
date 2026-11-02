@@ -53,7 +53,7 @@ class PracticeWorkbookTemplateTest {
         val tasks = listOf(
             PracticeTask(
                 id = "one",
-                assignedDate = "2026-10-31",
+                assignedDate = DateKey("2026-10-31"),
                 title = "Shifting",
                 source = "https://youtu.be/VZIWCt-jW6g",
                 sourceType = SourceType.YOUTUBE,
@@ -63,7 +63,7 @@ class PracticeWorkbookTemplateTest {
             ),
             PracticeTask(
                 id = "two",
-                assignedDate = "2026-10-31",
+                assignedDate = DateKey("2026-10-31"),
                 title = "Tremolo",
                 source = "https://youtu.be/nq-50MmDmWY",
                 sourceType = SourceType.YOUTUBE,
@@ -77,8 +77,8 @@ class PracticeWorkbookTemplateTest {
             snapshot = PracticeSnapshot(
                 tasks = tasks,
                 progressByDate = mapOf(
-                    "2026-10-31" to DailyProgress(
-                        date = "2026-10-31",
+                    DateKey("2026-10-31") to DailyProgress(
+                        date = DateKey("2026-10-31"),
                         repetitionsByTask = mapOf("one" to 2, "two" to 1),
                         elapsedSeconds = 125,
                     ),
@@ -102,7 +102,7 @@ class PracticeWorkbookTemplateTest {
             "2026-10-31 - Lincoln - Shifting - Take 01.mp4"
         val localTask = PracticeTask(
             id = "local-task",
-            assignedDate = "2026-10-31",
+            assignedDate = DateKey("2026-10-31"),
             title = "Shifting",
             source = "content://private/reference",
             sourceType = SourceType.LOCAL,
@@ -125,7 +125,7 @@ class PracticeWorkbookTemplateTest {
             events = listOf(
                 PracticeEvent(
                     id = "event",
-                    date = "2026-10-31",
+                    date = DateKey("2026-10-31"),
                     taskId = "local-task",
                     taskTitle = "Shifting",
                     event = "Practice take saved privately",
@@ -161,7 +161,7 @@ class PracticeWorkbookTemplateTest {
             assignmentId = "assignment",
             assignmentTitle = "Repertoire passage",
             instrument = "Violin",
-            date = "2026-11-01",
+            date = DateKey("2026-11-01"),
             mode = PracticeMode.PLAY_YOURSELF,
             startedAtMillis = 1_798_000_000_000,
             endedAtMillis = 1_798_000_300_000,

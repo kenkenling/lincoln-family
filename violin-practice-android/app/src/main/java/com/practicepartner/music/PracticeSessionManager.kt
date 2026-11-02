@@ -47,11 +47,9 @@ class PracticeSessionManager(
             )
             return
         }
-        val resolvedMode = when {
-            task.sourceType == SourceType.NONE -> PracticeMode.PLAY_YOURSELF
-            state.mode in task.enabledModes -> state.mode
-            else -> task.enabledModes.firstOrNull() ?: PracticeMode.PLAY_YOURSELF
-        }
+        val availableModes = task.availablePracticeModes()
+        val resolvedMode = state.mode.takeIf(availableModes::contains)
+            ?: availableModes.first()
         val session = PracticeSession(
             id = UUID.randomUUID().toString(),
             childProfileId = profile.id,
@@ -60,6 +58,7 @@ class PracticeSessionManager(
             instrument = task.instrument.ifBlank { profile.instrument },
             date = state.currentDate,
             mode = resolvedMode,
+            modesUsed = setOf(resolvedMode),
             startedAtMillis = wallClock(),
             repetitionsCompleted = 0,
             assignmentRevision = task.revision,
@@ -81,10 +80,50 @@ class PracticeSessionManager(
             )
         }
         updateSnapshot { snapshot ->
-            snapshot.copy(sessions = (snapshot.sessions + session).takeLast(MAX_SESSIONS))
+            snapshot.copy(
+                sessions = (snapshot.sessions + session)
+                    .takeLast(MAX_PRACTICE_SESSIONS),
+            )
         }
         if (!stateProvider().running) startTimer("Practice timer started")
         logEvent(task, "${stateProvider().mode.label} started")
+    }
+
+    fun switchMode(mode: PracticeMode): Boolean {
+        val state = stateProvider()
+        val task = taskFor(state.activeTaskId)
+        val sessionId = state.activeSessionId
+        if (task == null || sessionId == null) {
+            setMessage("Start a practice mission before changing steps.")
+            return false
+        }
+        if (mode !in task.availablePracticeModes()) {
+            setMessage("That practice step is not enabled for this assignment.")
+            return false
+        }
+        if (state.mode == mode) return false
+        if (state.snapshot.sessions.none { it.id == sessionId }) {
+            setMessage("The active practice session could not be found.")
+            return false
+        }
+
+        updateSnapshot { snapshot ->
+            snapshot.copy(
+                sessions = snapshot.sessions.map { session ->
+                    if (session.id == sessionId) {
+                        session.copy(
+                            mode = mode,
+                            modesUsed = session.resolvedModesUsed() + mode,
+                        )
+                    } else {
+                        session
+                    }
+                },
+            )
+        }
+        updateState { it.copy(mode = mode) }
+        logEvent(task, "Switched to ${mode.kidLabel()}")
+        return true
     }
 
     fun finishPractice(): Boolean {
@@ -174,14 +213,29 @@ class PracticeSessionManager(
         )
     }
 
-    fun submitReflection(reflection: PracticeReflection?) {
+    fun submitReflection(
+        reflection: PracticeReflection?,
+        studentConfident: Boolean = false,
+    ) {
         val state = stateProvider()
         val sessionId = state.pendingReflectionSessionId ?: return
         val session = state.snapshot.sessions.firstOrNull { it.id == sessionId }
         updateSnapshot { snapshot ->
             snapshot.copy(
                 sessions = snapshot.sessions.map {
-                    if (it.id == sessionId) it.copy(reflection = reflection) else it
+                    if (it.id == sessionId) {
+                        it.copy(
+                            reflection = reflection,
+                            masteryStatus = when {
+                                it.masteryStatus == MasteryStatus.TEACHER_APPROVED ->
+                                    MasteryStatus.TEACHER_APPROVED
+                                studentConfident -> MasteryStatus.STUDENT_CONFIDENT
+                                else -> MasteryStatus.NOT_ASSESSED
+                            },
+                        )
+                    } else {
+                        it
+                    }
                 },
             )
         }
@@ -192,16 +246,26 @@ class PracticeSessionManager(
                 sessionIdOverride = sessionId,
             )
         }
+        if (studentConfident) {
+            logEvent(
+                task = taskFor(session?.assignmentId),
+                message = "Confidence: Student feels confident",
+                sessionIdOverride = sessionId,
+            )
+        }
         updateState {
             it.copy(
                 pendingReflectionSessionId = null,
-                message = when (reflection) {
-                    PracticeReflection.PROUD -> "Nice work noticing what went well."
-                    PracticeReflection.MAKING_PROGRESS ->
+                message = when {
+                    studentConfident ->
+                        "Confidence noted separately from completing the practice goal."
+                    reflection == PracticeReflection.PROUD ->
+                        "Nice work noticing what went well."
+                    reflection == PracticeReflection.MAKING_PROGRESS ->
                         "Small steps count. Keep building."
-                    PracticeReflection.NEED_HELP ->
+                    reflection == PracticeReflection.NEED_HELP ->
                         "Good noticing. A grown-up can review this with you."
-                    null -> "Practice saved."
+                    else -> "Practice saved."
                 },
             )
         }
@@ -282,7 +346,7 @@ class PracticeSessionManager(
         var droppedRecordingPaths = emptySet<String>()
         updateSnapshot { snapshot ->
             val combined = snapshot.events + event
-            val retained = combined.takeLast(MAX_EVENTS)
+            val retained = combined.takeLast(MAX_PRACTICE_EVENTS)
             val retainedPaths = retained.mapNotNull(PracticeEvent::videoPath).toSet()
             droppedRecordingPaths = combined
                 .dropLast(retained.size)
@@ -333,6 +397,3 @@ internal fun interruptOpenSessions(
         snapshot.copy(sessions = interrupted)
     }
 }
-
-private const val MAX_EVENTS = 500
-private const val MAX_SESSIONS = 500

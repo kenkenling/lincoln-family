@@ -35,12 +35,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.DayOfWeek
-import java.time.LocalDate
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -118,7 +119,11 @@ fun TodayPage(
                                 selected = selectedMode == option,
                                 onClick = { onSelectMode(option) },
                                 leadingIcon = {
-                                    Text(option.kidEmoji(), fontSize = 16.sp)
+                                    Text(
+                                        option.kidEmoji(),
+                                        modifier = Modifier.hideFromAccessibility(),
+                                        fontSize = 16.sp,
+                                    )
                                 },
                                 label = { Text(option.kidLabel()) },
                                 colors = FilterChipDefaults.filterChipColors(
@@ -140,6 +145,7 @@ fun TodayPage(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = Ink,
+                    modifier = Modifier.accessibilityHeading(),
                 )
             }
         }
@@ -157,6 +163,7 @@ fun TodayPage(
             val completed = state.goalMet(task, state.currentDate)
             val needsReference = task.sourceType == SourceType.LOCAL && task.source.isBlank()
             Card(
+                modifier = Modifier.mergeForAccessibility(),
                 colors = CardDefaults.cardColors(
                     containerColor = if (completed) MintCloud else CloudWhite,
                 ),
@@ -168,6 +175,15 @@ fun TodayPage(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clearAndSetSemantics {
+                                contentDescription = taskCardAccessibilityDescription(
+                                    title = task.title,
+                                    progress = state.progressLabel(task, state.currentDate),
+                                    completed = completed,
+                                )
+                            },
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -256,6 +272,13 @@ fun TodayPage(
 internal fun WeeklyDotsRow(weekly: WeeklyPracticeSummary) {
     val dots = weeklyDotItems(weekly)
     Card(
+        modifier = Modifier.clearAndSetSemantics {
+            contentDescription =
+                weeklyPracticeAccessibilityDescription(
+                    practicedDays = weekly.practicedDays,
+                    totalDays = weekly.days.size,
+                ) + " $WEEKLY_PATTERN_COPY"
+        },
         colors = CardDefaults.cardColors(
             containerColor = CloudWhite.copy(alpha = 0.88f),
         ),
@@ -288,7 +311,20 @@ internal fun WeeklyDotsRow(weekly: WeeklyPracticeSummary) {
                             color = if (dot.practiced) SunYellow else CloudBlue,
                             shape = CircleShape,
                         ) {
-                            Box(Modifier.size(24.dp))
+                            Box(
+                                Modifier.size(24.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (dot.practiced) {
+                                    Text(
+                                        "✓",
+                                        modifier = Modifier.hideFromAccessibility(),
+                                        color = Ink,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Black,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -315,8 +351,8 @@ internal fun weeklyDotItems(weekly: WeeklyPracticeSummary): List<WeeklyDotItem> 
         )
     }
 
-private fun compactDayLabel(date: String): String =
-    when (runCatching { LocalDate.parse(date).dayOfWeek }.getOrNull()) {
+private fun compactDayLabel(date: DateKey): String =
+    when (date.toLocalDate().dayOfWeek) {
         DayOfWeek.MONDAY -> "M"
         DayOfWeek.TUESDAY -> "T"
         DayOfWeek.WEDNESDAY -> "W"
@@ -324,7 +360,6 @@ private fun compactDayLabel(date: String): String =
         DayOfWeek.FRIDAY -> "F"
         DayOfWeek.SATURDAY -> "S"
         DayOfWeek.SUNDAY -> "S"
-        null -> "?"
     }
 
 internal const val WEEKLY_PATTERN_COPY =
@@ -334,7 +369,7 @@ internal const val WEEKLY_PATTERN_COPY =
 private fun TodaySkyHero(
     studentName: String,
     daysSinceLastPractice: Int,
-    date: String,
+    date: DateKey,
     nextTask: PracticeTask?,
     selectedMode: PracticeMode,
     completedCount: Int,
@@ -355,13 +390,18 @@ private fun TodaySkyHero(
     ) {
         Text(
             "☁",
-            modifier = Modifier.align(Alignment.TopEnd),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .hideFromAccessibility(),
             color = Paper.copy(alpha = 0.22f),
             fontSize = 72.sp,
         )
         Text(
             "☀",
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 8.dp),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 3.dp, end = 8.dp)
+                .hideFromAccessibility(),
             color = SunYellow,
             fontSize = 34.sp,
         )
@@ -375,10 +415,11 @@ private fun TodaySkyHero(
                 style = MaterialTheme.typography.headlineMedium,
                 fontFamily = FontFamily.Cursive,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
             )
             Text(
                 friendlyFullDate(date),
-                color = Paper.copy(alpha = 0.82f),
+                color = Paper,
                 style = MaterialTheme.typography.bodySmall,
             )
             if (nextTask == null) {
@@ -389,7 +430,7 @@ private fun TodaySkyHero(
                 )
                 Text(
                     "A grown-up can add them from the settings cloud.",
-                    color = Paper.copy(alpha = 0.84f),
+                    color = Paper,
                 )
             } else {
                 Text(
@@ -398,7 +439,7 @@ private fun TodaySkyHero(
                     } else {
                         "Your next music mission"
                     },
-                    color = Paper.copy(alpha = 0.84f),
+                    color = Paper,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
@@ -407,12 +448,23 @@ private fun TodaySkyHero(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                 )
-                Text(
-                    "${selectedMode.kidEmoji()} ${selectedMode.kidLabel()} · " +
-                        "$completedCount of $totalCount finished",
-                    color = Paper.copy(alpha = 0.9f),
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        selectedMode.kidEmoji(),
+                        modifier = Modifier.hideFromAccessibility(),
+                        color = Paper,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        "${selectedMode.kidLabel()} · " +
+                            "$completedCount of $totalCount finished",
+                        color = Paper,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 Button(
                     onClick = onStart,
                     modifier = Modifier.fillMaxWidth().padding(top = 7.dp),

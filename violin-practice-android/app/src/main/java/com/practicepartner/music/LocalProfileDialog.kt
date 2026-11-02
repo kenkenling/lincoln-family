@@ -65,6 +65,7 @@ fun LocalProfileDialog(
                 "Profile & local file",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
             )
         },
         text = {
@@ -234,6 +235,7 @@ private fun LocalFileStatusCard(state: LocalFileUiState) {
     }
 
     Surface(
+        modifier = Modifier.politeMergedStatus(),
         color = if (state.status == LocalFileStatus.ERROR) {
             MaterialTheme.colorScheme.errorContainer
         } else {
@@ -288,7 +290,9 @@ private fun statusCardColor(status: LocalFileStatus) = when (status) {
 @Composable
 private fun BusyRow(text: String) {
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            .politeMergedStatus(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

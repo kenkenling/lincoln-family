@@ -1,6 +1,5 @@
 package com.practicepartner.music
 
-import android.content.Context
 import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,14 +10,14 @@ import kotlinx.coroutines.CoroutineScope
 import java.io.File
 
 class PracticeViewModel(
-    private val appContext: Context,
     private val store: PracticeDataStore,
     private val familyStore: FamilyDataStore,
     private val localWorkbookStore: WorkbookStorage,
+    private val recordingManager: RecordingManager,
+    private val profileArchiveDestination: ProfileArchiveDestination,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
     private val wallClock: () -> Long = System::currentTimeMillis,
-    private val dateProvider: () -> String = ::currentDateKey,
-    private val recordingManager: RecordingManager = RecordingManager.from(appContext),
+    private val dateProvider: () -> DateKey = ::currentDateKey,
     coroutineScope: CoroutineScope? = null,
     timerTicker: PracticeTimerTicker = PracticeTimerTicker.Default,
 ) : ViewModel() {
@@ -49,11 +48,11 @@ class PracticeViewModel(
 
     private val adultAccessManager = AdultAccessManager(familyStore, ::setMessage)
     private val profileDataManager = ProfileDataManager(
-        appContext = appContext,
         scope = managerScope,
         store = store,
         familyStore = familyStore,
         recordingManager = recordingManager,
+        archiveDestination = profileArchiveDestination,
         wallClock = wallClock,
         setMessage = ::setMessage,
     )
@@ -245,8 +244,15 @@ class PracticeViewModel(
     }
 
     fun setMode(mode: PracticeMode) {
+        if (uiState.activeTaskId != null) {
+            sessionManager.switchMode(mode)
+            return
+        }
         uiState = uiState.copy(mode = mode)
     }
+
+    fun switchPracticeMode(mode: PracticeMode): Boolean =
+        sessionManager.switchMode(mode)
 
     fun setMessage(message: String) {
         uiState = uiState.copy(message = message)
@@ -387,7 +393,7 @@ class PracticeViewModel(
 
     fun saveAssignment(
         taskId: String?,
-        assignedDateText: String,
+        assignedDate: DateKey,
         titleText: String,
         sourceText: String,
         startText: String,
@@ -404,7 +410,7 @@ class PracticeViewModel(
         if (!requireAdultAccess()) return false
         return workbookSyncManager.saveAssignment(
             taskId = taskId,
-            assignedDateText = assignedDateText,
+            assignedDate = assignedDate,
             titleText = titleText,
             sourceText = sourceText,
             startText = startText,
@@ -435,7 +441,7 @@ class PracticeViewModel(
         enabledModes: Set<PracticeMode> = setOf(PracticeMode.PLAY_YOURSELF),
     ): Boolean = saveAssignment(
         taskId = null,
-        assignedDateText = uiState.currentDate,
+        assignedDate = uiState.currentDate,
         titleText = titleText,
         sourceText = sourceText,
         startText = startText,
@@ -450,7 +456,7 @@ class PracticeViewModel(
         enabledModes = enabledModes,
     )
 
-    fun importCsv(text: String, defaultDate: String = uiState.currentDate) {
+    fun importCsv(text: String, defaultDate: DateKey = uiState.currentDate) {
         if (!requireAdultAccess()) return
         workbookSyncManager.importCsv(text, defaultDate)
     }
@@ -458,7 +464,7 @@ class PracticeViewModel(
     fun exportTodayCsv(): String =
         workbookSyncManager.exportCsvForDate(uiState.currentDate)
 
-    fun exportCsvForDate(date: String): String =
+    fun exportCsvForDate(date: DateKey): String =
         workbookSyncManager.exportCsvForDate(date)
 
     fun archiveTask(task: PracticeTask) {
@@ -536,8 +542,10 @@ class PracticeViewModel(
 
     fun recordRepetition(task: PracticeTask) = sessionManager.recordRepetition(task)
 
-    fun submitReflection(reflection: PracticeReflection?) =
-        sessionManager.submitReflection(reflection)
+    fun submitReflection(
+        reflection: PracticeReflection?,
+        studentConfident: Boolean = false,
+    ) = sessionManager.submitReflection(reflection, studentConfident)
 
     fun toggleCompleted(task: PracticeTask) = sessionManager.toggleCompleted(task)
 
@@ -598,6 +606,34 @@ class PracticeViewModel(
     private fun requireAdultAccess(): Boolean = adultAccessManager.requireAccess()
 
     companion object {
-        fun factory(context: Context) = practiceViewModelFactory(context)
+        fun factory(
+            context: android.content.Context,
+            store: PracticeDataStore = PracticeStore(context.applicationContext),
+            familyStore: FamilyDataStore = FamilyStore(context.applicationContext),
+            localWorkbookStore: WorkbookStorage = LocalWorkbookStore(context.applicationContext),
+            recordingManager: RecordingManager = RecordingManager.from(context.applicationContext),
+            profileArchiveDestination: ProfileArchiveDestination =
+                androidProfileArchiveDestination(context.applicationContext),
+        ) = factory(
+            store = store,
+            familyStore = familyStore,
+            localWorkbookStore = localWorkbookStore,
+            recordingManager = recordingManager,
+            profileArchiveDestination = profileArchiveDestination,
+        )
+
+        fun factory(
+            store: PracticeDataStore,
+            familyStore: FamilyDataStore,
+            localWorkbookStore: WorkbookStorage,
+            recordingManager: RecordingManager,
+            profileArchiveDestination: ProfileArchiveDestination,
+        ) = practiceViewModelFactory(
+            store = store,
+            familyStore = familyStore,
+            localWorkbookStore = localWorkbookStore,
+            recordingManager = recordingManager,
+            profileArchiveDestination = profileArchiveDestination,
+        )
     }
 }

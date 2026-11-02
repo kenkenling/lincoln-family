@@ -63,6 +63,7 @@ fun FamilyProfilesDialog(
                 "Family profiles",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.accessibilityHeading(),
             )
         },
         text = {
@@ -103,6 +104,7 @@ fun FamilyProfilesDialog(
                                     ) {
                                         Text(
                                             profile.name.firstOrNull()?.uppercase() ?: "♪",
+                                            modifier = Modifier.hideFromAccessibility(),
                                             fontWeight = FontWeight.Black,
                                         )
                                     }
@@ -239,7 +241,12 @@ fun FamilyProfilesDialog(
                 pendingDeleteId = null
                 deleteConfirmation = ""
             },
-            title = { Text("Delete ${profile.name}’s profile?") },
+            title = {
+                Text(
+                    "Delete ${profile.name}’s profile?",
+                    modifier = Modifier.accessibilityHeading(),
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(

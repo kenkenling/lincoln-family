@@ -10,6 +10,20 @@ import org.junit.Test
 
 class ModelsTest {
     @Test
+    fun completionAndMasteryLabelsRemainIndependent() {
+        assertEquals(
+            "Practice goal reached",
+            PracticeSessionStatus.COMPLETED.completionLabel(),
+        )
+        assertEquals("Not assessed", MasteryStatus.NOT_ASSESSED.summaryLabel)
+        assertEquals(
+            "Student feels confident",
+            MasteryStatus.STUDENT_CONFIDENT.summaryLabel,
+        )
+        assertEquals("Teacher approved", MasteryStatus.TEACHER_APPROVED.summaryLabel)
+    }
+
+    @Test
     fun youtubeParserAcceptsSupportedFormsOnly() {
         assertEquals("VZIWCt-jW6g", youtubeVideoId("https://youtu.be/VZIWCt-jW6g"))
         assertEquals(
@@ -27,7 +41,7 @@ class ModelsTest {
     fun repetitionsCompleteAssignmentAtTarget() {
         val task = PracticeTask(
             id = "task",
-            assignedDate = "2026-10-30",
+            assignedDate = DateKey("2026-10-30"),
             title = "Shifting",
             source = "https://youtu.be/VZIWCt-jW6g",
             sourceType = SourceType.YOUTUBE,
@@ -36,7 +50,7 @@ class ModelsTest {
             repetitions = 2,
         )
 
-        val once = DailyProgress("2026-10-30").recordRepetition(task)
+        val once = DailyProgress(DateKey("2026-10-30")).recordRepetition(task)
         assertEquals(1, once.repetitionsFor(task.id))
         assertFalse(task.id in once.completedTaskIds)
 
@@ -48,7 +62,7 @@ class ModelsTest {
     @Test
     fun removingTaskAlsoRemovesItsProgress() {
         val progress = DailyProgress(
-            date = "2026-10-30",
+            date = DateKey("2026-10-30"),
             completedTaskIds = setOf("task"),
             repetitionsByTask = mapOf("task" to 3),
         ).withoutTask("task")
@@ -61,7 +75,7 @@ class ModelsTest {
     fun reopeningCompletedTaskKeepsEarlierRepetitions() {
         val task = PracticeTask(
             id = "task",
-            assignedDate = "2026-10-31",
+            assignedDate = DateKey("2026-10-31"),
             title = "Tremolo",
             source = "https://youtu.be/VZIWCt-jW6g",
             sourceType = SourceType.YOUTUBE,
@@ -69,7 +83,7 @@ class ModelsTest {
             endSeconds = 20,
             repetitions = 4,
         )
-        val completed = DailyProgress("2026-10-31").toggleCompleted(task)
+        val completed = DailyProgress(DateKey("2026-10-31")).toggleCompleted(task)
         val reopened = completed.toggleCompleted(task)
 
         assertFalse(task.id in reopened.completedTaskIds)
@@ -91,7 +105,7 @@ class ModelsTest {
         )
         val legacyTask = PracticeTask(
             id = "legacy-task",
-            assignedDate = "2026-10-31",
+            assignedDate = DateKey("2026-10-31"),
             title = "C major scale",
             source = "",
             sourceType = SourceType.NONE,
@@ -117,7 +131,7 @@ class ModelsTest {
             assignmentId = legacyTask.id,
             assignmentTitle = legacyTask.title,
             instrument = "",
-            date = "2026-10-31",
+            date = DateKey("2026-10-31"),
             mode = PracticeMode.PLAY_YOURSELF,
             startedAtMillis = 10L,
         )
@@ -129,8 +143,8 @@ class ModelsTest {
         val scoped = PracticeSnapshot(
             tasks = listOf(legacyTask, currentTask, otherTask),
             progressByDate = mapOf(
-                "2026-10-31" to DailyProgress(
-                    date = "2026-10-31",
+                DateKey("2026-10-31") to DailyProgress(
+                    date = DateKey("2026-10-31"),
                     completedTaskIds = setOf(legacyTask.id, otherTask.id),
                     repetitionsByTask = mapOf(
                         legacyTask.id to 3,
@@ -141,7 +155,7 @@ class ModelsTest {
             events = listOf(
                 PracticeEvent(
                     id = "legacy-event",
-                    date = "2026-10-31",
+                    date = DateKey("2026-10-31"),
                     taskId = legacyTask.id,
                     taskTitle = legacyTask.title,
                     event = "Done",
@@ -150,7 +164,7 @@ class ModelsTest {
                 ),
                 PracticeEvent(
                     id = "other-event",
-                    date = "2026-10-31",
+                    date = DateKey("2026-10-31"),
                     taskId = otherTask.id,
                     taskTitle = otherTask.title,
                     event = "Done",
@@ -165,7 +179,7 @@ class ModelsTest {
         assertEquals(setOf("legacy-task", "current-task"), scoped.tasks.map { it.id }.toSet())
         assertTrue(scoped.tasks.all { it.childProfileId == current.id })
         assertTrue(scoped.tasks.all { it.instrument == current.instrument })
-        assertEquals(setOf("legacy-task"), scoped.progressByDate.getValue("2026-10-31").completedTaskIds)
+        assertEquals(setOf("legacy-task"), scoped.progressByDate.getValue(DateKey("2026-10-31")).completedTaskIds)
         assertEquals(listOf("legacy-event"), scoped.events.map(PracticeEvent::id))
         assertEquals(listOf("legacy-session"), scoped.sessions.map(PracticeSession::id))
         assertEquals(current.id, scoped.events.single().childProfileId)
@@ -184,7 +198,7 @@ class ModelsTest {
     fun timeGoalUsesAllSessionsForTheAssignment() {
         val task = PracticeTask(
             id = "time-task",
-            assignedDate = "2026-11-01",
+            assignedDate = DateKey("2026-11-01"),
             title = "Repertoire passage",
             source = "",
             sourceType = SourceType.NONE,
@@ -237,25 +251,25 @@ class ModelsTest {
         val state = PracticeUiState(
             snapshot = PracticeSnapshot(
                 progressByDate = mapOf(
-                    "2026-10-26" to DailyProgress(
-                        date = "2026-10-26",
+                    DateKey("2026-10-26") to DailyProgress(
+                        date = DateKey("2026-10-26"),
                         elapsedSeconds = 300,
                     ),
-                    "2026-10-29" to DailyProgress(
-                        date = "2026-10-29",
+                    DateKey("2026-10-29") to DailyProgress(
+                        date = DateKey("2026-10-29"),
                         elapsedSeconds = 420,
                     ),
                 ),
             ),
             activeChildProfileId = "student",
-            currentDate = "2026-11-01",
-            summaryDate = "2026-11-01",
+            currentDate = DateKey("2026-11-01"),
+            summaryDate = DateKey("2026-11-01"),
         )
 
         val week = state.weeklySummary()
 
-        assertEquals("2026-10-26", week.startDate)
-        assertEquals("2026-11-01", week.endDate)
+        assertEquals(DateKey("2026-10-26"), week.startDate)
+        assertEquals(DateKey("2026-11-01"), week.endDate)
         assertEquals(7, week.days.size)
         assertEquals(2, week.practicedDays)
         assertEquals(720L, week.totalSeconds)
@@ -284,7 +298,7 @@ class ModelsTest {
     fun archivedAssignmentIsHiddenFromTodayButKeptInSummaryHistory() {
         val active = PracticeTask(
             id = "active",
-            assignedDate = "2026-11-01",
+            assignedDate = DateKey("2026-11-01"),
             title = "Active",
             source = "",
             sourceType = SourceType.NONE,
@@ -301,8 +315,8 @@ class ModelsTest {
         val state = PracticeUiState(
             snapshot = PracticeSnapshot(tasks = listOf(active, archived)),
             activeChildProfileId = "student",
-            currentDate = "2026-11-01",
-            summaryDate = "2026-11-01",
+            currentDate = DateKey("2026-11-01"),
+            summaryDate = DateKey("2026-11-01"),
         )
 
         assertEquals(listOf("active"), state.todayTasks.map(PracticeTask::id))
@@ -310,12 +324,15 @@ class ModelsTest {
             setOf("active", "archived"),
             state.summaryTasks.map(PracticeTask::id).toSet(),
         )
-        assertEquals(listOf("archived"), state.archivedTasksForDate("2026-11-01").map { it.id })
+        assertEquals(
+            listOf("archived"),
+            state.archivedTasksForDate(DateKey("2026-11-01")).map { it.id },
+        )
     }
 
     @Test
     fun daysSinceLastPracticeUsesLatestRealActivityWithoutFutureDates() {
-        fun session(id: String, date: String) = PracticeSession(
+        fun session(id: String, date: DateKey) = PracticeSession(
             id = id,
             childProfileId = "student",
             assignmentId = "assignment",
@@ -329,25 +346,33 @@ class ModelsTest {
         fun days(snapshot: PracticeSnapshot) = PracticeUiState(
             snapshot = snapshot,
             activeChildProfileId = "student",
-            currentDate = "2026-11-01",
+            currentDate = DateKey("2026-11-01"),
         ).daysSinceLastPractice
 
         assertEquals(0, days(PracticeSnapshot()))
         assertEquals(
             0,
-            days(PracticeSnapshot(sessions = listOf(session("today", "2026-11-01")))),
+            days(
+                PracticeSnapshot(
+                    sessions = listOf(session("today", DateKey("2026-11-01"))),
+                ),
+            ),
         )
         assertEquals(
             1,
-            days(PracticeSnapshot(sessions = listOf(session("yesterday", "2026-10-31")))),
+            days(
+                PracticeSnapshot(
+                    sessions = listOf(session("yesterday", DateKey("2026-10-31"))),
+                ),
+            ),
         )
         assertEquals(
             2,
             days(
                 PracticeSnapshot(
                     progressByDate = mapOf(
-                        "2026-10-30" to DailyProgress(
-                            date = "2026-10-30",
+                        DateKey("2026-10-30") to DailyProgress(
+                            date = DateKey("2026-10-30"),
                             elapsedSeconds = 60L,
                         ),
                     ),
@@ -356,20 +381,24 @@ class ModelsTest {
         )
         assertEquals(
             6,
-            days(PracticeSnapshot(sessions = listOf(session("six-days", "2026-10-26")))),
+            days(
+                PracticeSnapshot(
+                    sessions = listOf(session("six-days", DateKey("2026-10-26"))),
+                ),
+            ),
         )
         assertEquals(
             7,
             days(
                 PracticeSnapshot(
                     progressByDate = mapOf(
-                        "2026-11-01" to DailyProgress(date = "2026-11-01"),
-                        "2026-10-25" to DailyProgress(
-                            date = "2026-10-25",
+                        DateKey("2026-11-01") to DailyProgress(date = DateKey("2026-11-01")),
+                        DateKey("2026-10-25") to DailyProgress(
+                            date = DateKey("2026-10-25"),
                             repetitionsByTask = mapOf("assignment" to 1),
                         ),
                     ),
-                    sessions = listOf(session("future", "2026-11-02")),
+                    sessions = listOf(session("future", DateKey("2026-11-02"))),
                 ),
             ),
         )
@@ -377,8 +406,8 @@ class ModelsTest {
 
     @Test
     fun dateSpecificCollectionsAreCachedUntilStateIsCopied() {
-        val today = "2026-11-01"
-        val earlier = "2026-10-31"
+        val today = DateKey("2026-11-01")
+        val earlier = DateKey("2026-10-31")
         val todayTask = PracticeTask(
             id = "today-task",
             assignedDate = today,

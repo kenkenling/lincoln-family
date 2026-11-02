@@ -2,6 +2,7 @@ package com.practicepartner.music
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StoreSerializationTest {
@@ -12,18 +13,26 @@ class StoreSerializationTest {
     )
 
     @Test
-    fun snapshotCodecMatchesVersionSevenFormatAndRoundTrips() {
-        val expectedJson = storeJson.parseToJsonElement(PREVIOUS_SNAPSHOT_JSON)
+    fun versionSevenSnapshotMigratesNewSessionFieldsAndRoundTripsAsVersionNine() {
         val decoded = PracticeSnapshotJsonCodec.decode(PREVIOUS_SNAPSHOT_JSON, profile)
 
         assertNotNull(decoded)
         assertEquals(0, decoded?.skippedRecords)
-        assertEquals(expectedJson, storeJson.parseToJsonElement(
-            PracticeSnapshotJsonCodec.encode(decoded!!.snapshot),
-        ))
+        val encoded = PracticeSnapshotJsonCodec.encode(decoded!!.snapshot)
+        assertTrue(encoded.contains("\"version\":9"))
+        assertTrue(encoded.contains("\"modesUsed\":[\"PLAY_YOURSELF\"]"))
+        assertTrue(encoded.contains("\"masteryStatus\":\"NOT_ASSESSED\""))
         assertEquals("task-1", decoded.snapshot.tasks.single().id)
         assertEquals(300, decoded.snapshot.tasks.single().targetSeconds)
         assertEquals(120L, decoded.snapshot.sessions.single().elapsedSeconds)
+        assertEquals(
+            setOf(PracticeMode.PLAY_YOURSELF),
+            decoded.snapshot.sessions.single().modesUsed,
+        )
+        assertEquals(
+            MasteryStatus.NOT_ASSESSED,
+            decoded.snapshot.sessions.single().masteryStatus,
+        )
     }
 
     @Test
@@ -55,6 +64,55 @@ class StoreSerializationTest {
         assertEquals(profile.instrument, task.instrument)
         assertEquals(PracticeMode.entries.toSet(), task.enabledModes)
         assertEquals(emptyList<PracticeSession>(), decoded.snapshot.sessions)
+    }
+
+    @Test
+    fun twelveMonthsOfDailyPracticeRoundTripsWithoutHistoryLoss() {
+        val events = List(365 * 5) { index ->
+            PracticeEvent(
+                id = "event-$index",
+                date = DateKey("2026-11-01"),
+                taskId = "task-1",
+                taskTitle = "Daily practice",
+                event = "Practice event $index",
+                atMillis = index.toLong(),
+                childProfileId = profile.id,
+            )
+        }
+        val sessions = List(365 * 3) { index ->
+            PracticeSession(
+                id = "session-$index",
+                childProfileId = profile.id,
+                assignmentId = "task-1",
+                assignmentTitle = "Daily practice",
+                instrument = profile.instrument,
+                date = DateKey("2026-11-01"),
+                mode = PracticeMode.PLAY_YOURSELF,
+                startedAtMillis = index.toLong(),
+            )
+        }
+        val snapshot = PracticeSnapshot(
+            events = events,
+            sessions = sessions,
+        )
+
+        val decoded = PracticeSnapshotJsonCodec.decode(
+            PracticeSnapshotJsonCodec.encode(snapshot),
+            profile,
+        )
+
+        assertNotNull(decoded)
+        assertEquals(events.size, decoded!!.snapshot.events.size)
+        assertEquals(sessions.size, decoded.snapshot.sessions.size)
+        assertEquals("event-0", decoded.snapshot.events.first().id)
+        assertEquals("session-0", decoded.snapshot.sessions.first().id)
+        assertNotNull(
+            PracticeUiState(
+                snapshot = decoded.snapshot,
+                activeChildProfileId = profile.id,
+                currentDate = DateKey("2026-11-01"),
+            ).historyCapacityWarning,
+        )
     }
 
     @Test

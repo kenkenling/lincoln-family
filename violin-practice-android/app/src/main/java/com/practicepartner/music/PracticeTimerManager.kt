@@ -33,7 +33,7 @@ class PracticeTimerManager(
     private val scope: CoroutineScope,
     private val elapsedRealtime: () -> Long,
     private val profileProvider: () -> ChildProfile,
-    private val dateProvider: () -> String,
+    private val dateProvider: () -> DateKey,
     private val activeTaskProvider: () -> PracticeTask?,
     private val activeSessionIdProvider: () -> String?,
     private val updateSnapshot: ((PracticeSnapshot) -> PracticeSnapshot) -> Unit,

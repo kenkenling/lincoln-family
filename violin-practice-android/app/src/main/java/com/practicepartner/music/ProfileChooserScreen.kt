@@ -68,7 +68,9 @@ fun ProfileChooserScreen(
                     color = Ink,
                     fontFamily = FontFamily.Cursive,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 10.dp),
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .accessibilityHeading(),
                 )
                 Text(
                     "Practice Makes Progress.",
@@ -79,7 +81,9 @@ fun ProfileChooserScreen(
                     "Who is practicing today?",
                     color = Muted,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier
+                        .padding(top = 14.dp)
+                        .accessibilityHeading(),
                 )
             }
         }
@@ -101,6 +105,7 @@ fun ProfileChooserScreen(
         item {
             Surface(
                 onClick = onOpenParentSpace,
+                modifier = Modifier.mergeForAccessibility(),
                 color = CloudWhite.copy(alpha = 0.9f),
                 shape = RoundedCornerShape(26.dp),
                 shadowElevation = 2.dp,
@@ -135,7 +140,7 @@ fun ProfileChooserScreen(
                     }
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Open Parent Space",
+                        contentDescription = null,
                         tint = DeepSky,
                     )
                 }
@@ -163,6 +168,7 @@ private fun ChildProfileCard(
 ) {
     Surface(
         onClick = onClick,
+        modifier = Modifier.mergeForAccessibility(),
         color = CloudWhite.copy(alpha = 0.96f),
         shape = RoundedCornerShape(28.dp),
         shadowElevation = 4.dp,
@@ -179,6 +185,7 @@ private fun ChildProfileCard(
                 ) {
                     Text(
                         profile.name.trim().firstOrNull()?.uppercase() ?: "♪",
+                        modifier = Modifier.hideFromAccessibility(),
                         style = MaterialTheme.typography.headlineSmall,
                         color = Ink,
                         fontWeight = FontWeight.Black,
@@ -199,7 +206,7 @@ private fun ChildProfileCard(
             }
             Icon(
                 Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Open ${profile.name}’s practice",
+                contentDescription = null,
                 tint = DeepSky,
             )
         }

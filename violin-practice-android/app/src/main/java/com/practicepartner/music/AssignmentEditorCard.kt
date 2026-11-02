@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 internal fun AssignmentEditorCard(
     studentName: String,
     instrument: String,
-    currentDate: String,
+    currentDate: DateKey,
     form: AssignmentForm,
     templates: List<AssignmentTemplate>,
     hasAssignmentsForDate: Boolean,
@@ -56,6 +56,7 @@ internal fun AssignmentEditorCard(
                 },
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.accessibilityHeading(),
             )
             Text(
                 "$instrument · ${friendlyFullDate(form.assignedDate)}",
@@ -65,6 +66,7 @@ internal fun AssignmentEditorCard(
                 "Quick start",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.accessibilityHeading(),
             )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -109,6 +111,7 @@ internal fun AssignmentEditorCard(
                 "Assignment kind",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.accessibilityHeading(),
             )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -128,6 +131,7 @@ internal fun AssignmentEditorCard(
                 "Practice goal",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.accessibilityHeading(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PracticeGoalType.entries.forEach { option ->
@@ -179,6 +183,7 @@ internal fun AssignmentEditorCard(
                 "Practice steps",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.accessibilityHeading(),
             )
             Text(
                 "Choose the steps the student can use. Listen and Play Along require a reference video.",
@@ -242,6 +247,7 @@ internal fun AssignmentEditorCard(
                 "Sheet music (optional)",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.accessibilityHeading(),
             )
             Text(
                 "Attach a PDF or image for $studentName to open during practice, or leave this blank.",
