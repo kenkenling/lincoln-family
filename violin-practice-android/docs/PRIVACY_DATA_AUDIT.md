@@ -24,6 +24,7 @@ Application ID: `com.lkeducation.lkpractice`
 | Profiles, assignments, progress, sessions, reflections | Private Room database | Parent setup and normal practice |
 | Parent PIN hash, file revisions, and migration flags | Private SharedPreferences | Parent setup and local file saves |
 | Practice videos | App-managed internal or app-specific external storage | Student or parent records a take |
+| Attached sheet music | App-managed private internal storage | Parent selects a supported PDF or image |
 | Workbook URI and filename | Private Room database | Parent selects or creates a local workbook |
 | Excel workbook content | Parent-selected document provider | Parent explicitly saves or loads |
 | Exported ZIP/CSV/video | Parent-selected destination or Android Share target | Parent explicitly exports or shares |
@@ -45,14 +46,16 @@ Application ID: `com.lkeducation.lkpractice`
 - `allowBackup` is false. Cloud backup and device transfer exclude root, files,
   databases, SharedPreferences, and external app data.
 - The `FileProvider` is not exported and grants URI access only when the app
-  deliberately shares a managed recording.
+  deliberately shares a managed recording or opens an attached sheet-music
+  copy in another app.
 
 ## Deletion
 
 Parent Space > Privacy & data > Delete all data requires typing `DELETE`.
 The action calls Android's `ActivityManager.clearApplicationUserData()`, which
 atomically removes application preferences, databases, caches, app-managed
-files, app-specific external files, and the consent record, then closes the app.
+recordings and sheet music, app-specific external files, and the consent record,
+then closes the app.
 
 Files saved through the Android file picker, exported archives, and videos
 already shared to another app are outside LK Practice's application data and

@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -38,9 +39,12 @@ internal fun AssignmentEditorCard(
     onChooseEndDate: () -> Unit,
     onPickVideo: () -> Unit,
     onPickSheetMusic: () -> Unit,
+    onPreviewSheetMusic: (String) -> Unit,
     onImport: () -> Unit,
     onExport: () -> Unit,
 ) {
+    val sheetMusicName = rememberSheetMusicDisplayName(form.sheetMusicUri)
+
     Card(
         colors = CardDefaults.cardColors(containerColor = Paper),
         shape = RoundedCornerShape(20.dp),
@@ -307,22 +311,37 @@ internal fun AssignmentEditorCard(
                 )
             }
             if (form.sheetMusicUri != null) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        "Sheet music attached and ready.",
+                        sheetMusicName,
                         color = Forest,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    TextButton(
-                        onClick = {
-                            onFormChanged(form.copy(sheetMusicUri = null))
-                        },
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
                     ) {
-                        Text("Remove")
+                        TextButton(
+                            onClick = {
+                                onPreviewSheetMusic(form.sheetMusicUri)
+                            },
+                        ) {
+                            Text("Preview")
+                        }
+                        TextButton(
+                            onClick = {
+                                onFormChanged(form.copy(sheetMusicUri = null))
+                            },
+                        ) {
+                            Text("Remove")
+                        }
                     }
                 }
             }

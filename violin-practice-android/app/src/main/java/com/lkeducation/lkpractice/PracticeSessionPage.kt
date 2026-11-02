@@ -49,12 +49,14 @@ fun PracticeSessionPage(
     onSwitchMode: (PracticeMode) -> Unit,
     onResumeTimer: () -> Unit,
     onOpenUri: (Uri, String) -> Unit,
+    onOpenSheetMusic: (Uri) -> Unit,
     onFinish: () -> Unit,
 ) {
     var savedTake by remember(task.id) { mutableStateOf<RecordingFile?>(null) }
     val completedRepetitions = state.todayProgress.repetitionsFor(task.id)
     val goalMet = state.goalMet(task, state.currentDate)
     val sheetMusicUri = task.sheetMusicUri
+    val sheetMusicName = rememberSheetMusicDisplayName(sheetMusicUri)
     val nextTakeNumber = nextRecordingTakeNumber(
         events = state.todayEvents,
         practiceDate = state.currentDate,
@@ -166,11 +168,22 @@ fun PracticeSessionPage(
                             Text(task.whyImportant)
                         }
                         if (sheetMusicUri != null) {
+                            Text(
+                                "Sheet music",
+                                fontWeight = FontWeight.Bold,
+                                color = Forest,
+                            )
+                            Text(
+                                sheetMusicName,
+                                color = Muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                             OutlinedButton(
-                                onClick = { onOpenUri(sheetMusicUri.toUri(), "*/*") },
+                                onClick = { onOpenSheetMusic(sheetMusicUri.toUri()) },
                                 enabled = !state.recordingActive,
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("Open sheet music")
+                                Text("View sheet music")
                             }
                         }
                     }

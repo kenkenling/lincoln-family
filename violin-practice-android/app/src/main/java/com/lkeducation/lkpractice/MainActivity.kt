@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import kotlinx.coroutines.launch
 
 private val DateKeySaver = Saver<DateKey, String>(
     save = { date -> date.value },
@@ -121,6 +123,8 @@ private fun PracticeApp(
     onDeleteAllData: () -> Boolean,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sheetMusicStorage = remember(context) { SheetMusicStorage.from(context) }
     val state = viewModel.uiState
     val snackbarHostState = remember { SnackbarHostState() }
     var form by remember(state.currentDate, viewModel.studentProfile.id) {
@@ -137,6 +141,7 @@ private fun PracticeApp(
     var showFamilyProfiles by rememberSaveable { mutableStateOf(false) }
     var showGrownUpTools by rememberSaveable { mutableStateOf(false) }
     var showPrivacySettings by rememberSaveable { mutableStateOf(false) }
+    var sheetMusicViewerUri by rememberSaveable { mutableStateOf<String?>(null) }
     var csvDatePending by rememberSaveable(stateSaver = DateKeySaver) {
         mutableStateOf(state.currentDate)
     }
@@ -176,8 +181,11 @@ private fun PracticeApp(
         }.isSuccess
 
     fun openUri(uri: Uri, mimeType: String) {
+        val resolvedMimeType = mimeType.takeUnless { it == "*/*" }
+            ?: context.contentResolver.getType(uri)
+            ?: "*/*"
         val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, mimeType)
+            .setDataAndType(uri, resolvedMimeType)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         runCatching { context.startActivity(intent) }
             .onFailure { viewModel.setMessage("No app is available to open this file.") }
@@ -234,16 +242,31 @@ private fun PracticeApp(
     }
     val pickSheetMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            if (persistReadPermission(uri)) {
-                form = form.copy(sheetMusicUri = uri.toString())
-                viewModel.setMessage("Sheet music attached.")
-            } else {
-                viewModel.setMessage(
-                    "LK Practice could not keep access to that sheet music. Choose it again from Files.",
-                )
+            val persistedPermission = persistReadPermission(uri)
+            scope.launch {
+                runCatching { sheetMusicStorage.importFrom(uri) }
+                    .onSuccess { imported ->
+                        form = form.copy(sheetMusicUri = imported.uri)
+                        viewModel.setMessage("${imported.displayName} is ready to preview.")
+                    }
+                    .onFailure { error ->
+                        viewModel.setMessage(
+                            error.message ?: "This sheet music could not be imported.",
+                        )
+                    }
+                if (persistedPermission) {
+                    runCatching {
+                        context.contentResolver.releasePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                        )
+                    }
+                }
+                viewModel.endAdultExternalAction()
             }
+        } else {
+            viewModel.endAdultExternalAction()
         }
-        viewModel.endAdultExternalAction()
     }
     val createExcelWorkbook = rememberLauncherForActivityResult(
         CreateLocalDocument(XLSX_MIME_TYPE),
@@ -313,6 +336,16 @@ private fun PracticeApp(
         }
         viewModel.endAdultExternalAction()
     }
+
+    sheetMusicViewerUri?.let { uriText ->
+        SheetMusicViewerScreen(
+            uri = uriText.toUri(),
+            onClose = { sheetMusicViewerUri = null },
+            onOpenExternally = ::openUri,
+        )
+        return
+    }
+
     BackHandler(enabled = !showProfileChooser) {
         when {
             state.activeTaskId != null -> viewModel.finishPractice()
@@ -371,6 +404,9 @@ private fun PracticeApp(
                             onSwitchMode = viewModel::switchPracticeMode,
                             onResumeTimer = viewModel::resumeActivePractice,
                             onOpenUri = ::openUri,
+                            onOpenSheetMusic = { uri ->
+                                sheetMusicViewerUri = uri.toString()
+                            },
                             onFinish = { viewModel.finishPractice() },
                         )
                     } else {
@@ -398,9 +434,12 @@ private fun PracticeApp(
                                 onPickSheetMusic = {
                                     if (viewModel.beginAdultExternalAction()) {
                                         pickSheetMusic.launch(
-                                            arrayOf("application/pdf", "image/*"),
+                                            sheetMusicPickerMimeTypes(),
                                         )
                                     }
+                                },
+                                onPreviewSheetMusic = { uriText ->
+                                    sheetMusicViewerUri = uriText
                                 },
                                 onImport = {
                                     csvDatePending = form.startDate

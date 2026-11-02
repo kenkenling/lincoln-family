@@ -93,6 +93,7 @@ fun AssignmentPage(
     onFormChanged: (AssignmentForm) -> Unit,
     onPickVideo: () -> Unit,
     onPickSheetMusic: () -> Unit,
+    onPreviewSheetMusic: (String) -> Unit,
     onImport: () -> Unit,
     onExport: () -> Unit,
     onAdd: () -> Unit,
@@ -158,6 +159,7 @@ fun AssignmentPage(
                     onChooseEndDate = ::showEndDatePicker,
                     onPickVideo = onPickVideo,
                     onPickSheetMusic = onPickSheetMusic,
+                    onPreviewSheetMusic = onPreviewSheetMusic,
                     onImport = onImport,
                     onExport = onExport,
                 )

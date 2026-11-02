@@ -6,4 +6,7 @@
     <files-path
         name="internal_practice_videos"
         path="Practice Partner/" />
+    <files-path
+        name="sheet_music"
+        path="Sheet Music/" />
 </paths>

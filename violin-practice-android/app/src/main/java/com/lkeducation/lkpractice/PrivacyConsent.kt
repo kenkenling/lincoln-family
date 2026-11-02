@@ -14,7 +14,7 @@ data class PrivacyPolicySection(
     val paragraphs: List<String>,
 )
 
-internal const val CURRENT_PRIVACY_POLICY_VERSION = 1
+internal const val CURRENT_PRIVACY_POLICY_VERSION = 2
 internal const val PRIVACY_POLICY_LAST_UPDATED = "November 2, 2026"
 internal const val PRIVACY_CONSENT_PREFERENCES = "lk_practice_privacy_consent"
 
@@ -29,21 +29,21 @@ internal val PRIVACY_POLICY_SECTIONS = listOf(
     PrivacyPolicySection(
         title = "Information kept by the app",
         paragraphs = listOf(
-            "The app may keep a student profile name and instrument, assignments and coaching notes, practice time and repetitions, reflections, recording filenames and videos, optional sheet-music references, and the location of an Excel workbook selected with the Android file picker.",
+            "The app may keep a student profile name and instrument, assignments and coaching notes, practice time and repetitions, reflections, recording filenames and videos, optional sheet-music files and references, and the location of an Excel workbook selected with the Android file picker.",
             "The app also keeps a salted hash of the local Parent Space PIN, the confirmed age range, and the accepted privacy-policy version. It does not need an exact birth date.",
         ),
     ),
     PrivacyPolicySection(
         title = "Where information is stored",
         paragraphs = listOf(
-            "Practice data and consent choices stay in this app's private storage on this device. Practice recordings stay in app-managed storage until a parent deletes or shares them.",
+            "Practice data and consent choices stay in this app's private storage on this device. Practice recordings and attached sheet music stay in app-managed storage until a parent deletes the related data or shares a copy.",
             "LK Practice has no developer-operated account, cloud-sync service, advertising SDK, or analytics SDK. Android cloud backup and device-transfer backup are disabled for app data.",
         ),
     ),
     PrivacyPolicySection(
         title = "Permissions and network use",
         paragraphs = listOf(
-            "Camera and microphone access are requested only for recording a practice take. The Android file picker grants access only to the video, sheet music, workbook, or export destination a parent chooses.",
+            "Camera and microphone access are requested only for recording a practice take. The Android file picker grants access only to the video, sheet music, workbook, or export destination a parent chooses. Selected sheet music is copied into LK Practice's private storage for reliable in-app viewing.",
             "Internet access is used for an assigned YouTube reference video. The privacy-enhanced YouTube player may still send network and device information, such as an IP address and playback activity, to YouTube or Google when the reference player is opened or used.",
             "The app does not request location, contacts, phone, SMS, or broad photo-library access.",
         ),
@@ -51,7 +51,7 @@ internal val PRIVACY_POLICY_SECTIONS = listOf(
     PrivacyPolicySection(
         title = "Sharing and external files",
         paragraphs = listOf(
-            "A practice video leaves app storage only when a parent deliberately uses Android Share. Files created or selected through the Android file picker are controlled by the chosen file provider and its privacy terms.",
+            "A practice video leaves app storage only when a parent deliberately uses Android Share. The original sheet-music source remains controlled by its file provider; LK Practice keeps a private app copy for the assignment.",
             "External Excel files, exported profile archives, and copies shared to another app are outside LK Practice's private storage. LK Practice cannot automatically delete those external copies.",
         ),
     ),
@@ -66,7 +66,7 @@ internal val PRIVACY_POLICY_SECTIONS = listOf(
         title = "Data choices and deletion",
         paragraphs = listOf(
             "A parent can delete an individual managed recording from Practice Summary.",
-            "Delete all data in Parent Space asks Android to erase all LK Practice application data, including consent, profiles, assignments, practice history, local databases, and app-managed recordings. The app closes after the wipe and shows this consent screen again the next time it opens.",
+            "Delete all data in Parent Space asks Android to erase all LK Practice application data, including consent, profiles, assignments, practice history, local databases, app-managed recordings, and attached sheet-music copies. The app closes after the wipe and shows this consent screen again the next time it opens.",
             "Files previously exported, shared, or saved outside app-managed storage must be deleted separately from the file provider or receiving app.",
         ),
     ),
