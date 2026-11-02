@@ -326,6 +326,7 @@ class WorkbookSyncManager(
             coachNote = coachNote.trim(),
             whyImportant = whyImportant.trim(),
             sheetMusicUri = sheetMusicUri?.takeIf(String::isNotBlank),
+            teacherId = existingTask?.teacherId,
             assignmentType = assignmentType,
             goalType = goalType,
             targetSeconds = if (goalType == PracticeGoalType.TIME) {
@@ -414,6 +415,11 @@ class WorkbookSyncManager(
             }
             val existingIndex = merged.indexOfFirst { it.id == task.id }
             val existing = merged.getOrNull(existingIndex)
+            val taskWithCreator = if (task.teacherId == null && existing?.teacherId != null) {
+                task.copy(teacherId = existing.teacherId)
+            } else {
+                task
+            }
             when {
                 !seenImportedIds.add(task.id) ->
                     errors += "Imported row ${index + 2}: duplicate assignment ID."
@@ -430,9 +436,9 @@ class WorkbookSyncManager(
                     errors += "Imported row ${index + 2}: duplicate assignment."
                 else -> {
                     if (existingIndex >= 0) {
-                        merged[existingIndex] = task
+                        merged[existingIndex] = taskWithCreator
                     } else {
-                        merged += task
+                        merged += taskWithCreator
                     }
                     acceptedCount += 1
                 }
@@ -713,6 +719,7 @@ internal fun mergeWorkbookAssignments(
             coachNote = assignment.coachNote,
             whyImportant = assignment.whyImportant,
             sheetMusicUri = sheetMusic,
+            teacherId = existing?.teacherId,
             assignmentType = assignment.assignmentType,
             goalType = assignment.goalType,
             targetSeconds = assignment.targetSeconds,

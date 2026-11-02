@@ -11,7 +11,13 @@ interface PracticeDataStore {
         currentDate: DateKey = currentDateKey(),
     ): PracticeLoadResult
 
-    fun save(profile: ChildProfile, snapshot: PracticeSnapshot)
+    fun replace(profile: ChildProfile, snapshot: PracticeSnapshot)
+
+    fun applyChanges(
+        profile: ChildProfile,
+        previous: PracticeSnapshot,
+        next: PracticeSnapshot,
+    )
 
     fun delete(profile: ChildProfile)
 

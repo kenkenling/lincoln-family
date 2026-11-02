@@ -30,7 +30,7 @@ internal class ProfileDataManager(
             instrument = instrument,
         )
         val household = familyStore.addChildProfile(profile)
-        store.save(profile, PracticeSnapshot())
+        store.replace(profile, PracticeSnapshot())
         return ProfileDataResult(AddedChildProfile(household, profile))
     }
 
@@ -52,7 +52,7 @@ internal class ProfileDataManager(
         val household = familyStore.saveChildProfile(profile)
         val snapshot = currentSnapshot.scopedTo(profile)
         if (snapshot != currentSnapshot) {
-            store.save(profile, snapshot)
+            store.applyChanges(profile, currentSnapshot, snapshot)
         }
         return ProfileDataResult(
             SavedChildProfile(

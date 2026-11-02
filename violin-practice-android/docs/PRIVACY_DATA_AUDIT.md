@@ -18,9 +18,10 @@ Audit date: November 2, 2026
 
 | Data | Storage or destination | Trigger |
 | --- | --- | --- |
-| Profiles, assignments, progress, sessions, reflections, Parent PIN hash | Private SharedPreferences | Parent setup and normal practice |
+| Profiles, assignments, progress, sessions, reflections | Private Room database | Parent setup and normal practice |
+| Parent PIN hash, file revisions, and migration flags | Private SharedPreferences | Parent setup and local file saves |
 | Practice videos | App-managed internal or app-specific external storage | Student or parent records a take |
-| Workbook URI and filename | Private SharedPreferences | Parent selects or creates a local workbook |
+| Workbook URI and filename | Private Room database | Parent selects or creates a local workbook |
 | Excel workbook content | Parent-selected document provider | Parent explicitly saves or loads |
 | Exported ZIP/CSV/video | Parent-selected destination or Android Share target | Parent explicitly exports or shares |
 | YouTube network data | YouTube/Google privacy-enhanced embedded player | Assigned YouTube reference player is opened or used |
@@ -35,10 +36,9 @@ Audit date: November 2, 2026
   blocks cleartext traffic, and disables WebView file/content access.
 - No location, contacts, phone, SMS, broad photo-library, or advertising-ID
   permission is declared.
-- No analytics, advertising, crash-reporting, account, cloud-storage, or social
-  SDK dependency is present.
-- No Room database is currently present. Android's application-data wipe also
-  covers a future Room database without needing a separate delete path.
+- Room is used only for the app's private local database. No analytics,
+  advertising, crash-reporting, account, cloud-storage, or social SDK
+  dependency is present.
 - `allowBackup` is false. Cloud backup and device transfer exclude root, files,
   databases, SharedPreferences, and external app data.
 - The `FileProvider` is not exported and grants URI access only when the app

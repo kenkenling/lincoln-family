@@ -72,6 +72,51 @@ class ModelsTest {
     }
 
     @Test
+    fun assignmentEditCreatesOneImmutablePreviousVersion() {
+        val original = PracticeTask(
+            id = "task",
+            childProfileId = "student",
+            assignedDate = DateKey("2026-11-01"),
+            title = "Slow scales",
+            source = "",
+            sourceType = SourceType.NONE,
+            startSeconds = 0,
+            endSeconds = null,
+            repetitions = 3,
+            revision = 2,
+        )
+        val before = PracticeSnapshot(tasks = listOf(original))
+        val candidate = before.copy(
+            tasks = listOf(
+                original.copy(
+                    title = "Slow scales with a straight bow",
+                    coachNote = "Watch the bridge.",
+                ),
+            ),
+        )
+
+        val versioned = preserveAssignmentVersionHistory(
+            previous = before,
+            candidate = candidate,
+            changedAtMillis = 2_000L,
+        )
+        val unchanged = preserveAssignmentVersionHistory(
+            previous = versioned,
+            candidate = versioned,
+            changedAtMillis = 3_000L,
+        )
+
+        assertEquals(3, versioned.tasks.single().revision)
+        assertEquals(1, versioned.assignmentHistory.size)
+        assertEquals(original, versioned.assignmentHistory.single().previousAssignment)
+        assertEquals(
+            setOf("title", "coachNote"),
+            versioned.assignmentHistory.single().changedFields,
+        )
+        assertEquals(versioned, unchanged)
+    }
+
+    @Test
     fun reopeningCompletedTaskKeepsEarlierRepetitions() {
         val task = PracticeTask(
             id = "task",

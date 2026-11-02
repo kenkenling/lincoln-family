@@ -74,6 +74,45 @@ data class ChildProfile(
 
 typealias StudentProfile = ChildProfile
 
+/**
+ * Phase D model only. A teacher profile does not grant access by itself; runtime
+ * authorization must be based on an active parent-granted [StudentTeacherLink].
+ */
+@Serializable
+data class TeacherProfile(
+    val id: String,
+    val name: String,
+    val email: String,
+)
+
+/**
+ * Records parent-controlled access between one teacher and one child.
+ *
+ * Future teacher features must require a matching link with [revokedAtMillis] == null.
+ * Only the granting parent may create or revoke this link, and revocation must stop all
+ * subsequent teacher reads and writes for the child.
+ */
+@Serializable
+data class StudentTeacherLink(
+    val teacherId: String,
+    val childProfileId: String,
+    val grantedByParentId: String,
+    val grantedAtMillis: Long,
+    val revokedAtMillis: Long? = null,
+)
+
+/**
+ * Phase D feedback record. Future writes must verify that [teacherId] has an active,
+ * parent-granted link to the child who owns [sessionId]. This model alone grants no access.
+ */
+@Serializable
+data class TeacherFeedback(
+    val sessionId: String,
+    val teacherId: String,
+    val comment: String,
+    val atMillis: Long,
+)
+
 enum class LocalFileStatus {
     NOT_CONFIGURED,
     READY,
@@ -105,6 +144,8 @@ data class Assignment(
     val whyImportant: String = "",
     val sheetMusicUri: String? = null,
     val childProfileId: String = "",
+    // Null means parent-created. Future teacher writes require an active StudentTeacherLink.
+    val teacherId: String? = null,
     val instrument: String = "",
     val assignmentType: AssignmentType = AssignmentType.TECHNIQUE,
     val goalType: PracticeGoalType = PracticeGoalType.REPETITIONS,
@@ -115,6 +156,19 @@ data class Assignment(
 )
 
 typealias PracticeTask = Assignment
+
+@Serializable
+data class AssignmentHistory(
+    val assignmentId: String,
+    val childProfileId: String,
+    // The revision represented by previousAssignment.
+    val revision: Int,
+    val changedAtMillis: Long,
+    // Field names changed by the edit that replaced this revision.
+    val changedFields: Set<String> = emptySet(),
+    // Full immutable snapshot so completed practice can still resolve revision N.
+    val previousAssignment: Assignment,
+)
 
 @Serializable
 data class DailyProgress(
@@ -219,6 +273,7 @@ data class PracticeSnapshot(
     val progressByDate: Map<DateKey, DailyProgress> = emptyMap(),
     val events: List<PracticeEvent> = emptyList(),
     val sessions: List<PracticeSession> = emptyList(),
+    val assignmentHistory: List<AssignmentHistory> = emptyList(),
 )
 
 data class RecordingFile(
@@ -276,11 +331,22 @@ data class PracticeUiState(
     val summarySessions: List<PracticeSession> =
         snapshot.sessions.filter { it.date == summaryDate }
 
+    private val assignmentHistoryById: Map<String, List<AssignmentHistory>> =
+        snapshot.assignmentHistory
+            .groupBy(AssignmentHistory::assignmentId)
+            .mapValues { (_, history) ->
+                history.sortedWith(
+                    compareByDescending<AssignmentHistory> { it.revision }
+                        .thenByDescending { it.changedAtMillis },
+                )
+            }
+
     val historyDates: List<DateKey> = (
         snapshot.tasks.map(PracticeTask::assignedDate) +
             snapshot.progressByDate.keys +
             snapshot.events.map(PracticeEvent::date) +
             snapshot.sessions.map(PracticeSession::date) +
+            snapshot.assignmentHistory.map { it.previousAssignment.assignedDate } +
             currentDate
         ).distinct().sorted()
 
@@ -310,6 +376,19 @@ data class PracticeUiState(
         snapshot.tasks.filter {
             it.assignedDate == date && it.archivedAtMillis != null
         }
+
+    fun assignmentHistoryFor(assignmentId: String): List<AssignmentHistory> =
+        assignmentHistoryById[assignmentId].orEmpty()
+
+    fun assignmentAtRevision(
+        assignmentId: String,
+        revision: Int,
+    ): Assignment? =
+        snapshot.tasks.firstOrNull {
+            it.id == assignmentId && it.revision == revision
+        } ?: assignmentHistoryById[assignmentId]
+            ?.firstOrNull { it.revision == revision }
+            ?.previousAssignment
 
     fun secondsForTask(taskId: String, date: DateKey): Long =
         snapshot.sessions
@@ -617,10 +696,88 @@ fun PracticeSnapshot.scopedTo(profile: ChildProfile): PracticeSnapshot {
                 sessionId = event.sessionId?.takeIf(scopedSessionIds::contains),
             )
         }
+    val scopedAssignmentHistory = assignmentHistory
+        .filter { belongsTo(it.childProfileId) }
+        .map { history ->
+            history.copy(
+                childProfileId = profile.id,
+                previousAssignment = history.previousAssignment.copy(
+                    id = history.assignmentId,
+                    childProfileId = profile.id,
+                    instrument = history.previousAssignment.instrument
+                        .ifBlank { profile.instrument },
+                    revision = history.revision,
+                ),
+            )
+        }
     return PracticeSnapshot(
         tasks = scopedTasks,
         progressByDate = scopedProgress,
         events = scopedEvents,
         sessions = scopedSessions,
+        assignmentHistory = scopedAssignmentHistory,
     )
+}
+
+internal fun preserveAssignmentVersionHistory(
+    previous: PracticeSnapshot,
+    candidate: PracticeSnapshot,
+    changedAtMillis: Long,
+): PracticeSnapshot {
+    val previousById = previous.tasks.associateBy(PracticeTask::id)
+    val existingKeys = candidate.assignmentHistory
+        .mapTo(mutableSetOf()) { it.assignmentId to it.revision }
+    val addedHistory = mutableListOf<AssignmentHistory>()
+    val normalizedTasks = candidate.tasks.map { nextTask ->
+        val previousTask = previousById[nextTask.id]
+            ?: return@map nextTask
+        if (previousTask == nextTask) return@map nextTask
+
+        val versionedTask = if (nextTask.revision > previousTask.revision) {
+            nextTask
+        } else {
+            nextTask.copy(revision = previousTask.revision + 1)
+        }
+        val historyKey = previousTask.id to previousTask.revision
+        if (existingKeys.add(historyKey)) {
+            addedHistory += AssignmentHistory(
+                assignmentId = previousTask.id,
+                childProfileId = previousTask.childProfileId,
+                revision = previousTask.revision,
+                changedAtMillis = changedAtMillis,
+                changedFields = assignmentChangedFields(previousTask, versionedTask),
+                previousAssignment = previousTask,
+            )
+        }
+        versionedTask
+    }
+    if (addedHistory.isEmpty() && normalizedTasks == candidate.tasks) return candidate
+    return candidate.copy(
+        tasks = normalizedTasks,
+        assignmentHistory = candidate.assignmentHistory + addedHistory,
+    )
+}
+
+private fun assignmentChangedFields(
+    previous: Assignment,
+    next: Assignment,
+): Set<String> = buildSet {
+    if (previous.assignedDate != next.assignedDate) add("assignedDate")
+    if (previous.title != next.title) add("title")
+    if (previous.source != next.source) add("source")
+    if (previous.sourceType != next.sourceType) add("sourceType")
+    if (previous.startSeconds != next.startSeconds) add("startSeconds")
+    if (previous.endSeconds != next.endSeconds) add("endSeconds")
+    if (previous.repetitions != next.repetitions) add("repetitions")
+    if (previous.coachNote != next.coachNote) add("coachNote")
+    if (previous.whyImportant != next.whyImportant) add("whyImportant")
+    if (previous.sheetMusicUri != next.sheetMusicUri) add("sheetMusicUri")
+    if (previous.teacherId != next.teacherId) add("teacherId")
+    if (previous.instrument != next.instrument) add("instrument")
+    if (previous.assignmentType != next.assignmentType) add("assignmentType")
+    if (previous.goalType != next.goalType) add("goalType")
+    if (previous.targetSeconds != next.targetSeconds) add("targetSeconds")
+    if (previous.enabledModes != next.enabledModes) add("enabledModes")
+    if (previous.archivedAtMillis != next.archivedAtMillis) add("archivedAtMillis")
+    if (isEmpty()) add("revision")
 }

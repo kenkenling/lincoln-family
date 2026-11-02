@@ -23,6 +23,7 @@ internal object PracticeSnapshotJsonCodec {
         storeJson.encodeToString(
             StoredPracticeSnapshot(
                 tasks = snapshot.tasks,
+                assignmentHistory = snapshot.assignmentHistory,
                 progress = snapshot.progressByDate.values.sortedBy(DailyProgress::date),
                 events = snapshot.events.takeLast(MAX_PRACTICE_EVENTS),
                 sessions = snapshot.sessions.takeLast(MAX_PRACTICE_SESSIONS),
@@ -63,6 +64,27 @@ internal object PracticeSnapshotJsonCodec {
                 elapsedSeconds = item.elapsedSeconds.coerceAtLeast(0L),
             )
         }
+        val assignmentHistory = decodeRows<AssignmentHistory>(
+            stored.assignmentHistory,
+        ) { history, _ ->
+            val assignmentId = history.assignmentId.trim().also {
+                require(it.isNotBlank())
+            }
+            val revision = history.revision.coerceAtLeast(1)
+            history.copy(
+                assignmentId = assignmentId,
+                revision = revision,
+                changedAtMillis = history.changedAtMillis.coerceAtLeast(0L),
+                changedFields = history.changedFields
+                    .map(String::trim)
+                    .filter(String::isNotBlank)
+                    .toSet(),
+                previousAssignment = history.previousAssignment.copy(
+                    id = assignmentId,
+                    revision = revision,
+                ),
+            )
+        }
         val events = decodeRows<PracticeEvent>(stored.events) { event, _ ->
             event.copy(
                 id = event.id.ifBlank { UUID.randomUUID().toString() },
@@ -88,9 +110,11 @@ internal object PracticeSnapshotJsonCodec {
                 progressByDate = progress.values.associateBy(DailyProgress::date),
                 events = events.values.takeLast(MAX_PRACTICE_EVENTS),
                 sessions = sessions.values.takeLast(MAX_PRACTICE_SESSIONS),
+                assignmentHistory = assignmentHistory.values,
             ).scopedTo(profile),
             skippedRecords =
-                tasks.skipped + progress.skipped + events.skipped + sessions.skipped,
+                tasks.skipped + progress.skipped + assignmentHistory.skipped +
+                    events.skipped + sessions.skipped,
         )
     }.getOrNull()
 }
@@ -129,6 +153,7 @@ internal object HouseholdJsonCodec {
 private data class StoredPracticeSnapshot(
     val version: Int = PRACTICE_SNAPSHOT_VERSION,
     val tasks: List<PracticeTask>,
+    val assignmentHistory: List<AssignmentHistory> = emptyList(),
     @SerialName("progress")
     val progress: List<DailyProgress>,
     val events: List<PracticeEvent>,
@@ -139,6 +164,7 @@ private data class StoredPracticeSnapshot(
 private data class StoredPracticeSnapshotRows(
     val version: Int = PRACTICE_SNAPSHOT_VERSION,
     val tasks: List<JsonElement>,
+    val assignmentHistory: List<JsonElement> = emptyList(),
     @SerialName("progress")
     val progress: List<JsonElement>,
     val events: List<JsonElement>,
@@ -189,5 +215,5 @@ internal data class DecodedPracticeSnapshot(
     val skippedRecords: Int,
 )
 
-private const val PRACTICE_SNAPSHOT_VERSION = 9
+private const val PRACTICE_SNAPSHOT_VERSION = 10
 private const val HOUSEHOLD_VERSION = 1

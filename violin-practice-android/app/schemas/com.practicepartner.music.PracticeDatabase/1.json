@@ -1,0 +1,691 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "ba21f67d8090b3eb8ed9347cb7112085",
+    "entities": [
+      {
+        "tableName": "households",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `activeChildProfileId` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeChildProfileId",
+            "columnName": "activeChildProfileId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "child_profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `householdId` TEXT NOT NULL, `name` TEXT NOT NULL, `instrument` TEXT NOT NULL, `excelWorkbookUri` TEXT, `excelWorkbookName` TEXT, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`householdId`) REFERENCES `households`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "householdId",
+            "columnName": "householdId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "instrument",
+            "columnName": "instrument",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "excelWorkbookUri",
+            "columnName": "excelWorkbookUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "excelWorkbookName",
+            "columnName": "excelWorkbookName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_child_profiles_householdId",
+            "unique": false,
+            "columnNames": [
+              "householdId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_child_profiles_householdId` ON `${TABLE_NAME}` (`householdId`)"
+          },
+          {
+            "name": "index_child_profiles_householdId_sortOrder",
+            "unique": false,
+            "columnNames": [
+              "householdId",
+              "sortOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_child_profiles_householdId_sortOrder` ON `${TABLE_NAME}` (`householdId`, `sortOrder`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "households",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "householdId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "assignments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `childProfileId` TEXT NOT NULL, `assignedDate` TEXT NOT NULL, `title` TEXT NOT NULL, `source` TEXT NOT NULL, `sourceType` TEXT NOT NULL, `startSeconds` INTEGER NOT NULL, `endSeconds` INTEGER, `repetitions` INTEGER NOT NULL, `coachNote` TEXT NOT NULL, `whyImportant` TEXT NOT NULL, `sheetMusicUri` TEXT, `instrument` TEXT NOT NULL, `assignmentType` TEXT NOT NULL, `goalType` TEXT NOT NULL, `targetSeconds` INTEGER NOT NULL, `enabledModesJson` TEXT NOT NULL, `revision` INTEGER NOT NULL, `archivedAtMillis` INTEGER, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`childProfileId`) REFERENCES `child_profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "childProfileId",
+            "columnName": "childProfileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignedDate",
+            "columnName": "assignedDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceType",
+            "columnName": "sourceType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startSeconds",
+            "columnName": "startSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endSeconds",
+            "columnName": "endSeconds",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "repetitions",
+            "columnName": "repetitions",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coachNote",
+            "columnName": "coachNote",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "whyImportant",
+            "columnName": "whyImportant",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sheetMusicUri",
+            "columnName": "sheetMusicUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "instrument",
+            "columnName": "instrument",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignmentType",
+            "columnName": "assignmentType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "goalType",
+            "columnName": "goalType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetSeconds",
+            "columnName": "targetSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabledModesJson",
+            "columnName": "enabledModesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAtMillis",
+            "columnName": "archivedAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_assignments_childProfileId",
+            "unique": false,
+            "columnNames": [
+              "childProfileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assignments_childProfileId` ON `${TABLE_NAME}` (`childProfileId`)"
+          },
+          {
+            "name": "index_assignments_childProfileId_assignedDate",
+            "unique": false,
+            "columnNames": [
+              "childProfileId",
+              "assignedDate"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assignments_childProfileId_assignedDate` ON `${TABLE_NAME}` (`childProfileId`, `assignedDate`)"
+          },
+          {
+            "name": "index_assignments_childProfileId_sortOrder",
+            "unique": false,
+            "columnNames": [
+              "childProfileId",
+              "sortOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assignments_childProfileId_sortOrder` ON `${TABLE_NAME}` (`childProfileId`, `sortOrder`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "child_profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "childProfileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "daily_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`childProfileId` TEXT NOT NULL, `date` TEXT NOT NULL, `completedTaskIdsJson` TEXT NOT NULL, `repetitionsByTaskJson` TEXT NOT NULL, `elapsedSeconds` INTEGER NOT NULL, PRIMARY KEY(`childProfileId`, `date`), FOREIGN KEY(`childProfileId`) REFERENCES `child_profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "childProfileId",
+            "columnName": "childProfileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedTaskIdsJson",
+            "columnName": "completedTaskIdsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repetitionsByTaskJson",
+            "columnName": "repetitionsByTaskJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedSeconds",
+            "columnName": "elapsedSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "childProfileId",
+            "date"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_progress_childProfileId_date",
+            "unique": false,
+            "columnNames": [
+              "childProfileId",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_progress_childProfileId_date` ON `${TABLE_NAME}` (`childProfileId`, `date`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "child_profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "childProfileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "practice_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `childProfileId` TEXT NOT NULL, `date` TEXT NOT NULL, `taskId` TEXT, `taskTitle` TEXT NOT NULL, `event` TEXT NOT NULL, `atMillis` INTEGER NOT NULL, `videoUri` TEXT, `videoPath` TEXT, `videoFileName` TEXT, `sessionId` TEXT, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`childProfileId`) REFERENCES `child_profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "childProfileId",
+            "columnName": "childProfileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "taskTitle",
+            "columnName": "taskTitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "event",
+            "columnName": "event",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "atMillis",
+            "columnName": "atMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoUri",
+            "columnName": "videoUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "videoPath",
+            "columnName": "videoPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "videoFileName",
+            "columnName": "videoFileName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_practice_events_childProfileId",
+            "unique": false,
+            "columnNames": [
+              "childProfileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_events_childProfileId` ON `${TABLE_NAME}` (`childProfileId`)"
+          },
+          {
+            "name": "index_practice_events_childProfileId_date",
+            "unique": false,
+            "columnNames": [
+              "childProfileId",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_events_childProfileId_date` ON `${TABLE_NAME}` (`childProfileId`, `date`)"
+          },
+          {
+            "name": "index_practice_events_childProfileId_sortOrder",
+            "unique": false,
+            "columnNames": [
+              "childProfileId",
+              "sortOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_events_childProfileId_sortOrder` ON `${TABLE_NAME}` (`childProfileId`, `sortOrder`)"
+          },
+          {
+            "name": "index_practice_events_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_events_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "child_profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "childProfileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "practice_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `childProfileId` TEXT NOT NULL, `assignmentId` TEXT NOT NULL, `assignmentTitle` TEXT NOT NULL, `instrument` TEXT NOT NULL, `date` TEXT NOT NULL, `mode` TEXT NOT NULL, `modesUsedJson` TEXT NOT NULL, `startedAtMillis` INTEGER NOT NULL, `endedAtMillis` INTEGER, `repetitionsCompleted` INTEGER NOT NULL, `status` TEXT NOT NULL, `assignmentRevision` INTEGER NOT NULL, `assignmentType` TEXT NOT NULL, `goalType` TEXT NOT NULL, `targetRepetitions` INTEGER NOT NULL, `targetSeconds` INTEGER NOT NULL, `elapsedSeconds` INTEGER NOT NULL, `reflection` TEXT, `masteryStatus` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`childProfileId`) REFERENCES `child_profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "childProfileId",
+            "columnName": "childProfileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignmentId",
+            "columnName": "assignmentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignmentTitle",
+            "columnName": "assignmentTitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "instrument",
+            "columnName": "instrument",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mode",
+            "columnName": "mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modesUsedJson",
+            "columnName": "modesUsedJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMillis",
+            "columnName": "startedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtMillis",
+            "columnName": "endedAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "repetitionsCompleted",
+            "columnName": "repetitionsCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignmentRevision",
+            "columnName": "assignmentRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignmentType",
+            "columnName": "assignmentType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "goalType",
+            "columnName": "goalType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetRepetitions",
+            "columnName": "targetRepetitions",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetSeconds",
+            "columnName": "targetSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedSeconds",
+            "columnName": "elapsedSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reflection",
+            "columnName": "reflection",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "masteryStatus",
+            "columnName": "masteryStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_practice_sessions_childProfileId",
+            "unique": false,
+            "columnNames": [
+              "childProfileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_sessions_childProfileId` ON `${TABLE_NAME}` (`childProfileId`)"
+          },
+          {
+            "name": "index_practice_sessions_childProfileId_date",
+            "unique": false,
+            "columnNames": [
+              "childProfileId",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_sessions_childProfileId_date` ON `${TABLE_NAME}` (`childProfileId`, `date`)"
+          },
+          {
+            "name": "index_practice_sessions_childProfileId_sortOrder",
+            "unique": false,
+            "columnNames": [
+              "childProfileId",
+              "sortOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_sessions_childProfileId_sortOrder` ON `${TABLE_NAME}` (`childProfileId`, `sortOrder`)"
+          },
+          {
+            "name": "index_practice_sessions_assignmentId",
+            "unique": false,
+            "columnNames": [
+              "assignmentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_practice_sessions_assignmentId` ON `${TABLE_NAME}` (`assignmentId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "child_profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "childProfileId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ba21f67d8090b3eb8ed9347cb7112085')"
+    ]
+  }
+}

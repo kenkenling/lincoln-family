@@ -4,6 +4,7 @@ import org.gradle.testing.jacoco.tasks.JacocoReport
 
 plugins {
     id("com.android.application")
+    id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -31,6 +32,10 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
@@ -43,6 +48,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    val room = "2.8.5"
+    implementation("androidx.room:room-runtime:$room")
+    ksp("androidx.room:room-compiler:$room")
     val cameraX = "1.6.2"
     implementation("androidx.camera:camera-camera2:$cameraX")
     implementation("androidx.camera:camera-lifecycle:$cameraX")
@@ -52,6 +60,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250517")
     testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("androidx.room:room-testing:$room")
 }
 
 tasks.withType<Test>().configureEach {

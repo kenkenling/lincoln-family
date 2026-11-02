@@ -30,7 +30,7 @@ authenticated server-side authorization and remain later phases.
 | Household and child profiles | Implemented | Multiple named children can use different instruments with isolated data. |
 | Parent protection | Implemented as a local gate | Salted four-digit PIN; this is not an online account or verifiable parental consent system. |
 | Teacher role and sharing | Missing | Requires authenticated, scoped backend authorization. |
-| Persistence | Implemented locally | Per-child JSON snapshots in SharedPreferences with last-known-good backup recovery. |
+| Persistence | Implemented locally | Indexed per-child Room rows with one-time recovery and migration from legacy SharedPreferences JSON. |
 | Excel and CSV | Implemented locally | Assignments move both ways; exports include explicit student and instrument ownership. |
 | Cloud sync | Missing by design | No Drive, Sheets, or YouTube account connection. |
 | Recording sharing and deletion | Implemented for parents | Child practice can watch a just-recorded take; sharing and deletion stay in Parent Space. |
@@ -53,8 +53,8 @@ flowchart TD
     G --> J
     H --> J
     I --> J
-    J --> K[FamilyStore: household, profiles, PIN]
-    J --> L[PracticeStore: per-child snapshots and backups]
+    J --> K[FamilyStore: Room household and profiles; preference-backed PIN]
+    J --> L[PracticeStore: indexed per-child Room rows]
     J --> M[LocalWorkbookStore: per-child XLSX]
     J --> N[App-managed recording files]
 ```
@@ -84,14 +84,19 @@ reader/writer. There is no backend.
 
 - The Android application ID remains `com.practicepartner.music`, so the new APK
   upgrades the installed app rather than creating a second app.
-- The existing `practice_partner_v2` preferences file remains in use.
+- The existing `practice_partner_v2` preferences file remains in use only for
+  the PIN hash, local-file revision counters, and one-time migration flags.
 - Existing single-profile keys become the first `ChildProfile`.
-- The existing global practice snapshot is claimed by the first migrated child,
-  copied into `snapshot_v5:<child-id>`, and not deleted during migration.
+- Existing household and per-child/global snapshot JSON is decoded once and
+  inserted transactionally into Room.
+- After a successful database transaction, migrated household and snapshot JSON
+  keys are removed; a recovery warning is retained until that profile is first
+  opened.
 - Legacy records without an owner are assigned to the migrated child. Records
   explicitly owned by another child are filtered out.
-- Each new child receives a separate snapshot, revision counter, workbook
-  configuration, assignments, progress, events, sessions, and recordings view.
+- Each new child receives indexed assignment, progress, event, and session rows
+  plus a separate revision counter, workbook configuration, and recordings
+  view.
 - Existing “Practice Partner” recording directories and FileProvider paths are
   retained internally so older recordings remain accessible after the visible
   LK Practice rebrand.

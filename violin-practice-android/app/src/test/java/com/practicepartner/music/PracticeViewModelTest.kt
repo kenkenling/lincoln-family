@@ -245,6 +245,15 @@ class PracticeViewModelTest {
         assertEquals("Open strings slowly", edited.title)
         assertEquals(2, edited.revision)
         assertEquals(2L, fixture.familyStore.localRevision(profile.id))
+        val history = fixture.viewModel.uiState.assignmentHistoryFor(created.id).single()
+        assertEquals(1, history.revision)
+        assertEquals(fixture.clock.wallClockMillis, history.changedAtMillis)
+        assertEquals(setOf("title"), history.changedFields)
+        assertEquals(created, history.previousAssignment)
+        assertEquals(
+            created,
+            fixture.viewModel.uiState.assignmentAtRevision(created.id, created.revision),
+        )
     }
 
     @Test
@@ -279,6 +288,10 @@ class PracticeViewModelTest {
         assertEquals(listOf(archived), state.archivedTasksForDate(task.assignedDate))
         assertNotNull(archived.archivedAtMillis)
         assertEquals(task.revision + 1, archived.revision)
+        assertEquals(
+            task,
+            state.assignmentAtRevision(task.id, task.revision),
+        )
         assertEquals(progress, state.snapshot.progressByDate.getValue(task.assignedDate))
         assertEquals(listOf(session), state.snapshot.sessions)
     }
@@ -835,8 +848,16 @@ private class ViewModelPracticeStoreFake(
         currentDate: DateKey,
     ): PracticeLoadResult = PracticeLoadResult(load(profile, currentDate))
 
-    override fun save(profile: ChildProfile, snapshot: PracticeSnapshot) {
+    override fun replace(profile: ChildProfile, snapshot: PracticeSnapshot) {
         snapshotsByProfile[profile.id] = snapshot.scopedTo(profile)
+    }
+
+    override fun applyChanges(
+        profile: ChildProfile,
+        previous: PracticeSnapshot,
+        next: PracticeSnapshot,
+    ) {
+        snapshotsByProfile[profile.id] = next.scopedTo(profile)
     }
 
     override fun delete(profile: ChildProfile) {

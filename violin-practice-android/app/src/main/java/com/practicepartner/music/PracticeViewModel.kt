@@ -86,8 +86,12 @@ class PracticeViewModel(
         recordingActiveProvider = { uiState.recordingActive },
         canReadContentUri = recordingManager::canReadContentUri,
         persistSnapshot = { snapshot ->
-            val scoped = snapshot.scopedTo(studentProfile)
-            store.save(studentProfile, scoped)
+            val scoped = prepareSnapshotForPersistence(snapshot)
+            store.applyChanges(
+                profile = studentProfile,
+                previous = uiState.snapshot,
+                next = scoped,
+            )
             uiState = uiState.copy(snapshot = scoped)
         },
         updateSnapshot = { saveWorkbook, transform ->
@@ -192,7 +196,9 @@ class PracticeViewModel(
         val date = dateProvider()
         val load = store.loadWithStatus(profile, date)
         val snapshot = interruptOpenSessions(load.snapshot, wallClock())
-        if (snapshot != load.snapshot) store.save(profile, snapshot)
+        if (snapshot != load.snapshot) {
+            store.applyChanges(profile, load.snapshot, snapshot)
+        }
         val elapsedSeconds = snapshot.progressByDate[date]?.elapsedSeconds ?: 0L
         timerManager.reset(elapsedSeconds)
         uiState = PracticeUiState(
@@ -596,11 +602,24 @@ class PracticeViewModel(
         saveWorkbook: Boolean = false,
         transform: (PracticeSnapshot) -> PracticeSnapshot,
     ) {
-        val next = transform(uiState.snapshot).scopedTo(studentProfile)
+        val next = prepareSnapshotForPersistence(transform(uiState.snapshot))
         if (next == uiState.snapshot) return
-        store.save(studentProfile, next)
+        store.applyChanges(
+            profile = studentProfile,
+            previous = uiState.snapshot,
+            next = next,
+        )
         uiState = uiState.copy(snapshot = next)
         if (saveWorkbook) workbookSyncManager.recordLocalMutation()
+    }
+
+    private fun prepareSnapshotForPersistence(candidate: PracticeSnapshot): PracticeSnapshot {
+        val scopedCandidate = candidate.scopedTo(studentProfile)
+        return preserveAssignmentVersionHistory(
+            previous = uiState.snapshot,
+            candidate = scopedCandidate,
+            changedAtMillis = wallClock(),
+        ).scopedTo(studentProfile)
     }
 
     private fun requireAdultAccess(): Boolean = adultAccessManager.requireAccess()

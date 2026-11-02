@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -231,47 +230,53 @@ fun SummaryPage(
         }
         items(tasks, key = { "summary-${it.id}" }) { task ->
             Card(
-                modifier = Modifier.mergeForAccessibility(),
                 colors = CardDefaults.cardColors(containerColor = Paper),
                 shape = RoundedCornerShape(16.dp),
             ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(15.dp)
-                        .clearAndSetSemantics {
-                            contentDescription = taskCardAccessibilityDescription(
-                                title = task.title,
-                                progress = state.progressLabel(task, state.summaryDate),
-                                completed = state.goalMet(task, state.summaryDate),
-                                archived = task.archivedAtMillis != null,
-                            )
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(15.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(task.title, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "${task.assignmentType.label} · " +
-                                state.progressLabel(task, state.summaryDate),
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        if (task.archivedAtMillis != null) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clearAndSetSemantics {
+                                contentDescription = taskCardAccessibilityDescription(
+                                    title = task.title,
+                                    progress = state.progressLabel(task, state.summaryDate),
+                                    completed = state.goalMet(task, state.summaryDate),
+                                    archived = task.archivedAtMillis != null,
+                                )
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(task.title, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Archived from Today",
+                                "${task.assignmentType.label} · " +
+                                    state.progressLabel(task, state.summaryDate),
                                 color = Muted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                            if (task.archivedAtMillis != null) {
+                                Text(
+                                    "Archived from Today",
+                                    color = Muted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                        if (state.goalMet(task, state.summaryDate)) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Forest,
+                            )
                         }
                     }
-                    if (state.goalMet(task, state.summaryDate)) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = Forest,
-                        )
-                    }
+                    AssignmentVersionHistory(
+                        history = state.assignmentHistoryFor(task.id),
+                    )
                 }
             }
         }
@@ -430,60 +435,5 @@ fun SummaryPage(
                 }
             },
         )
-    }
-}
-
-@Composable
-private fun SessionCompletionAndMastery(session: PracticeSession) {
-    val goalReached = session.status == PracticeSessionStatus.COMPLETED
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            modifier = Modifier.mergeForAccessibility(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            if (goalReached) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = Forest,
-                    modifier = Modifier.size(20.dp),
-                )
-            } else {
-                Spacer(Modifier.size(20.dp))
-            }
-            Text(
-                "Completion: ${session.status.completionLabel()}",
-                color = if (goalReached) Forest else Muted,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        Row(
-            modifier = Modifier.mergeForAccessibility(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            if (session.masteryStatus == MasteryStatus.TEACHER_APPROVED) {
-                Icon(
-                    Icons.Default.Star,
-                    contentDescription = null,
-                    tint = Forest,
-                    modifier = Modifier.size(20.dp),
-                )
-            } else {
-                Spacer(Modifier.size(20.dp))
-            }
-            Text(
-                "Mastery: ${session.masteryStatus.summaryLabel}",
-                color = when (session.masteryStatus) {
-                    MasteryStatus.NOT_ASSESSED -> Muted
-                    MasteryStatus.STUDENT_CONFIDENT -> DeepSky
-                    MasteryStatus.TEACHER_APPROVED -> Forest
-                },
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
     }
 }

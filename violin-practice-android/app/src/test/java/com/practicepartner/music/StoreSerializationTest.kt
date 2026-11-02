@@ -13,13 +13,13 @@ class StoreSerializationTest {
     )
 
     @Test
-    fun versionSevenSnapshotMigratesNewSessionFieldsAndRoundTripsAsVersionNine() {
+    fun versionSevenSnapshotMigratesNewSessionFieldsAndRoundTripsAsVersionTen() {
         val decoded = PracticeSnapshotJsonCodec.decode(PREVIOUS_SNAPSHOT_JSON, profile)
 
         assertNotNull(decoded)
         assertEquals(0, decoded?.skippedRecords)
         val encoded = PracticeSnapshotJsonCodec.encode(decoded!!.snapshot)
-        assertTrue(encoded.contains("\"version\":9"))
+        assertTrue(encoded.contains("\"version\":10"))
         assertTrue(encoded.contains("\"modesUsed\":[\"PLAY_YOURSELF\"]"))
         assertTrue(encoded.contains("\"masteryStatus\":\"NOT_ASSESSED\""))
         assertEquals("task-1", decoded.snapshot.tasks.single().id)
@@ -32,6 +32,56 @@ class StoreSerializationTest {
         assertEquals(
             MasteryStatus.NOT_ASSESSED,
             decoded.snapshot.sessions.single().masteryStatus,
+        )
+    }
+
+    @Test
+    fun assignmentHistoryAndTeacherOwnershipRoundTrip() {
+        val previous = PracticeTask(
+            id = "task-1",
+            assignedDate = DateKey("2026-11-01"),
+            title = "Original title",
+            source = "",
+            sourceType = SourceType.NONE,
+            startSeconds = 0,
+            endSeconds = null,
+            repetitions = 3,
+            childProfileId = profile.id,
+            teacherId = "teacher-1",
+            instrument = profile.instrument,
+            revision = 2,
+        )
+        val snapshot = PracticeSnapshot(
+            tasks = listOf(
+                previous.copy(
+                    title = "Updated title",
+                    revision = 3,
+                ),
+            ),
+            assignmentHistory = listOf(
+                AssignmentHistory(
+                    assignmentId = previous.id,
+                    childProfileId = profile.id,
+                    revision = previous.revision,
+                    changedAtMillis = 1_234L,
+                    changedFields = setOf("title"),
+                    previousAssignment = previous,
+                ),
+            ),
+        )
+
+        val decoded = PracticeSnapshotJsonCodec.decode(
+            PracticeSnapshotJsonCodec.encode(snapshot),
+            profile,
+        )
+
+        assertEquals(snapshot, decoded?.snapshot)
+        assertEquals("teacher-1", decoded?.snapshot?.tasks?.single()?.teacherId)
+        assertEquals(
+            "Original title",
+            decoded?.snapshot?.assignmentHistory?.single()
+                ?.previousAssignment
+                ?.title,
         )
     }
 

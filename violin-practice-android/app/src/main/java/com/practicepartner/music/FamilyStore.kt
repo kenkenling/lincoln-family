@@ -1,117 +1,158 @@
 package com.practicepartner.music
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Base64
 import androidx.core.content.edit
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.UUID
 
-class FamilyStore(context: Context) : FamilyDataStore {
-    private val prefs = context.getSharedPreferences("practice_partner_v2", Context.MODE_PRIVATE)
+class FamilyStore private constructor(
+    private val database: PracticeDatabase,
+    private val runner: DatabaseRunner,
+    private val prefs: SharedPreferences,
+    private val migration: LegacyRoomMigration,
+) : FamilyDataStore {
+    constructor(context: Context) : this(
+        dependencies = PracticeDatabaseProvider.get(context),
+        context = context.applicationContext,
+    )
 
-    override fun loadHousehold(): Household {
+    private constructor(
+        dependencies: RoomStoreDependencies,
+        context: Context,
+    ) : this(
+        database = dependencies.database,
+        runner = dependencies.runner,
+        prefs = context.getSharedPreferences(
+            PRACTICE_PREFERENCES_NAME,
+            Context.MODE_PRIVATE,
+        ),
+        migration = LegacyRoomMigration(
+            database = dependencies.database,
+            prefs = context.getSharedPreferences(
+                PRACTICE_PREFERENCES_NAME,
+                Context.MODE_PRIVATE,
+            ),
+            legacyPrefs = context.getSharedPreferences(
+                LEGACY_PRACTICE_PREFERENCES_NAME,
+                Context.MODE_PRIVATE,
+            ),
+        ),
+    )
+
+    internal constructor(
+        database: PracticeDatabase,
+        runner: DatabaseRunner,
+        prefs: SharedPreferences,
+        migration: LegacyRoomMigration,
+        @Suppress("UNUSED_PARAMETER") testOnly: Unit = Unit,
+    ) : this(database, runner, prefs, migration)
+
+    override fun loadHousehold(): Household = runner.run(::readyHousehold)
+
+    private fun readyHousehold(): Household {
         migrateRetiredConnections()
-        prefs.getString(HOUSEHOLD_KEY, null)
-            ?.let(::decodeHousehold)
-            ?.let { household ->
-                migrateScopedSettings(household.activeChildProfileId)
-                return household
-            }
-
-        val defaultLegacyName = "Student"
-        val legacyProfile = ChildProfile(
-            id = prefs.getString("student_profile_id", null) ?: UUID.randomUUID().toString(),
-            name = prefs.getString("student_profile_name", defaultLegacyName)
-                .orEmpty()
-                .ifBlank { defaultLegacyName },
-            instrument = prefs.getString("student_profile_instrument", "Violin")
-                .orEmpty()
-                .ifBlank { "Violin" },
-            excelWorkbookUri = prefs.getString("excel_workbook_uri", null),
-            excelWorkbookName = prefs.getString("excel_workbook_name", null),
-        )
-        val household = Household(
-            id = UUID.randomUUID().toString(),
-            childProfiles = listOf(legacyProfile),
-            activeChildProfileId = legacyProfile.id,
-        )
-        saveHousehold(household)
-        migrateScopedSettings(legacyProfile.id)
+        val household = migration.migrateAllIfNeeded()
+        migrateScopedSettings(household.activeChildProfileId)
         return household
     }
 
     override fun saveHousehold(household: Household) {
-        val normalized = normalize(household)
-        val active = normalized.activeChildProfile
-            ?: error("A household must contain an active child profile.")
-        prefs.edit(commit = true) {
-            putString(HOUSEHOLD_KEY, HouseholdJsonCodec.encode(normalized))
-
-            // Keep the previous single-profile keys current so an older app build can still
-            // open the active child after a rollback.
-            putString("student_profile_id", active.id)
-            putString("student_profile_name", active.name)
-            putString("student_profile_instrument", active.instrument)
-            putString("excel_workbook_uri", active.excelWorkbookUri)
-            putString("excel_workbook_name", active.excelWorkbookName)
+        val normalized = normalizeHousehold(household)
+        runner.run {
+            database.runInTransaction {
+                database.householdDao().upsert(normalized.toEntity())
+                database.childProfileDao().upsertAll(
+                    normalized.childProfiles.mapIndexed { index, profile ->
+                        profile.toEntity(normalized.id, index)
+                    },
+                )
+                database.childProfileDao().deleteExcept(
+                    normalized.id,
+                    normalized.childProfiles.map(ChildProfile::id),
+                )
+            }
         }
     }
 
-    override fun saveChildProfile(profile: ChildProfile): Household {
-        val household = loadHousehold()
-        require(household.childProfiles.any { it.id == profile.id }) {
-            "The child profile does not exist."
-        }
-        val profiles = household.childProfiles.map {
-            if (it.id == profile.id) profile else it
-        }
-        val updated = household.copy(
-            childProfiles = profiles,
-            activeChildProfileId = profile.id,
+    override fun saveChildProfile(profile: ChildProfile): Household = runner.run {
+        val household = readyHousehold()
+        val profileIndex = household.childProfiles.indexOfFirst { it.id == profile.id }
+        require(profileIndex >= 0) { "The child profile does not exist." }
+        val updated = normalizeHousehold(
+            household.copy(
+                childProfiles = household.childProfiles.map {
+                    if (it.id == profile.id) profile else it
+                },
+                activeChildProfileId = profile.id,
+            ),
         )
-        saveHousehold(updated)
-        return updated
+        database.runInTransaction {
+            database.childProfileDao().upsert(
+                updated.childProfiles[profileIndex].toEntity(updated.id, profileIndex),
+            )
+            database.householdDao().updateActiveChild(updated.id, profile.id)
+        }
+        updated
     }
 
-    override fun addChildProfile(profile: ChildProfile): Household {
-        val household = loadHousehold()
+    override fun addChildProfile(profile: ChildProfile): Household = runner.run {
+        val household = readyHousehold()
         require(household.childProfiles.none { it.id == profile.id }) {
             "A child profile with this ID already exists."
         }
-        val updated = household.copy(
-            childProfiles = household.childProfiles + profile,
+        val updated = normalizeHousehold(
+            household.copy(childProfiles = household.childProfiles + profile),
         )
-        saveHousehold(updated)
-        return updated
+        database.childProfileDao().upsert(
+            updated.childProfiles.last().toEntity(
+                householdId = updated.id,
+                sortOrder = updated.childProfiles.lastIndex,
+            ),
+        )
+        updated
     }
 
-    override fun setActiveChildProfile(childProfileId: String): Household {
-        val household = loadHousehold()
+    override fun setActiveChildProfile(childProfileId: String): Household = runner.run {
+        val household = readyHousehold()
         require(household.childProfiles.any { it.id == childProfileId }) {
             "The selected child profile does not exist."
         }
-        val updated = household.copy(activeChildProfileId = childProfileId)
-        saveHousehold(updated)
-        return updated
+        database.householdDao().updateActiveChild(household.id, childProfileId)
+        household.copy(activeChildProfileId = childProfileId)
     }
 
     override fun removeChildProfile(childProfileId: String): Household {
-        val household = loadHousehold()
-        require(household.childProfiles.size > 1) {
-            "The household must keep at least one child profile."
+        val updated = runner.run {
+            val household = readyHousehold()
+            require(household.childProfiles.size > 1) {
+                "The household must keep at least one child profile."
+            }
+            require(household.childProfiles.any { it.id == childProfileId }) {
+                "The child profile does not exist."
+            }
+            val remaining = household.childProfiles.filterNot { it.id == childProfileId }
+            val next = household.copy(
+                childProfiles = remaining,
+                activeChildProfileId = household.activeChildProfileId
+                    .takeUnless { it == childProfileId }
+                    ?: remaining.first().id,
+            )
+            database.runInTransaction {
+                database.childProfileDao().delete(childProfileId)
+                database.householdDao().updateActiveChild(
+                    next.id,
+                    next.activeChildProfileId,
+                )
+                database.childProfileDao().upsertAll(
+                    remaining.mapIndexed { index, profile ->
+                        profile.toEntity(next.id, index)
+                    },
+                )
+            }
+            next
         }
-        require(household.childProfiles.any { it.id == childProfileId }) {
-            "The child profile does not exist."
-        }
-        val remaining = household.childProfiles.filterNot { it.id == childProfileId }
-        val updated = household.copy(
-            childProfiles = remaining,
-            activeChildProfileId = household.activeChildProfileId
-                .takeUnless { it == childProfileId }
-                ?: remaining.first().id,
-        )
-        saveHousehold(updated)
         prefs.edit(commit = true) {
             remove(scopedKey("local_data_revision", childProfileId))
             remove(scopedKey("last_local_file_revision", childProfileId))
@@ -211,31 +252,6 @@ class FamilyStore(context: Context) : FamilyDataStore {
         }
     }
 
-    private fun decodeHousehold(value: String): Household? =
-        HouseholdJsonCodec.decode(value)?.let(::normalize)
-
-    private fun normalize(household: Household): Household {
-        require(household.childProfiles.isNotEmpty()) {
-            "A household must contain at least one child profile."
-        }
-        val profiles = household.childProfiles
-            .map { profile ->
-                profile.copy(
-                    name = profile.name.trim().ifBlank { "Student" },
-                    instrument = profile.instrument.trim().ifBlank { "Instrument" },
-                )
-            }
-            .distinctBy(ChildProfile::id)
-        val activeId = household.activeChildProfileId
-            .takeIf { id -> profiles.any { it.id == id } }
-            ?: profiles.first().id
-        return household.copy(
-            name = household.name.trim().ifBlank { "Our Family" },
-            childProfiles = profiles,
-            activeChildProfileId = activeId,
-        )
-    }
-
     private fun scopedKey(prefix: String, childProfileId: String): String =
         "$prefix:$childProfileId"
 }
@@ -245,7 +261,6 @@ internal fun isValidAdultPin(pin: String): Boolean = pin.matches(Regex("\\d{4}")
 private fun adultPinHash(salt: ByteArray, pin: String): ByteArray =
     MessageDigest.getInstance("SHA-256").digest(salt + pin.toByteArray(Charsets.UTF_8))
 
-private const val HOUSEHOLD_KEY = "household_v1"
 private const val SCOPED_SETTINGS_MIGRATION_KEY = "child_scoped_settings_migration_v1"
 private const val ADULT_PIN_SALT_KEY = "adult_pin_salt_v1"
 private const val ADULT_PIN_HASH_KEY = "adult_pin_hash_v1"
