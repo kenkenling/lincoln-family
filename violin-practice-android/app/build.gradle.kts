@@ -12,12 +12,12 @@ plugins {
 }
 
 android {
-    namespace = "com.practicepartner.music"
+    namespace = "com.lkeducation.lkpractice"
     compileSdk = 37
     compileSdkMinor = 2
 
     defaultConfig {
-        applicationId = "com.practicepartner.music"
+        applicationId = "com.lkeducation.lkpractice"
         minSdk = 26
         targetSdk = 37
         versionCode = 16
@@ -56,6 +56,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraX")
     implementation("androidx.camera:camera-video:$cameraX")
     implementation("androidx.camera:camera-view:$cameraX")
+    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250517")
@@ -80,10 +81,10 @@ tasks.register<JacocoReport>("practiceViewModelUnitTestCoverage") {
 
     classDirectories.setFrom(
         fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) {
-            include("com/practicepartner/music/PracticeViewModel*.class")
+            include("com/lkeducation/lkpractice/PracticeViewModel*.class")
             exclude(
-                "com/practicepartner/music/PracticeViewModelFactoryKt*.class",
-                "com/practicepartner/music/PracticeViewModel\$Companion.class",
+                "com/lkeducation/lkpractice/PracticeViewModelFactoryKt*.class",
+                "com/lkeducation/lkpractice/PracticeViewModel\$Companion.class",
             )
         },
     )

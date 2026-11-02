@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PracticePartner"
+rootProject.name = "LKPractice"
 include(":app")

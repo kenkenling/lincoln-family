@@ -2,6 +2,9 @@
 
 Audit date: November 2, 2026
 
+Publisher: LK Education
+Application ID: `com.lkeducation.lkpractice`
+
 ## Launch and consent
 
 - `MainActivity` checks the current privacy-policy acceptance before accessing the

@@ -82,8 +82,10 @@ reader/writer. There is no backend.
 
 ## Upgrade and migration behavior
 
-- The Android application ID remains `com.practicepartner.music`, so the new APK
-  upgrades the installed app rather than creating a second app.
+- Before the first Google Play upload, the Android application ID changed from
+  `com.practicepartner.music` to `com.lkeducation.lkpractice` so the permanent
+  store identity reflects the LK Education publisher and LK Practice product.
+  Existing development builds with the old ID are treated as a separate app.
 - The existing `practice_partner_v2` preferences file remains in use only for
   the PIN hash, local-file revision counters, and one-time migration flags.
 - Existing single-profile keys become the first `ChildProfile`.
