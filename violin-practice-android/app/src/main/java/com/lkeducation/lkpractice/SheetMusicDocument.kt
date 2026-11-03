@@ -1,6 +1,5 @@
 package com.lkeducation.lkpractice
 
-import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -33,7 +32,7 @@ private class PdfSheetMusicDocument(
     override val displayName: String,
     private val descriptor: ParcelFileDescriptor,
     private val renderer: PdfRenderer,
-    private val temporaryFile: File,
+    private val fileToDeleteOnClose: File?,
 ) : SheetMusicDocument() {
     override val mimeType: String = "application/pdf"
     override val pageCount: Int = renderer.pageCount
@@ -60,7 +59,7 @@ private class PdfSheetMusicDocument(
     override fun close() {
         renderer.close()
         descriptor.close()
-        temporaryFile.delete()
+        fileToDeleteOnClose?.delete()
     }
 }
 
@@ -90,14 +89,49 @@ private class ImageSheetMusicDocument(
 
 internal fun openSheetMusicDocument(context: Context, uri: Uri): SheetMusicDocument {
     val resolver = context.contentResolver
-    val displayName = querySheetMusicDisplayName(resolver, uri)
+    val managedFile = resolveManagedSheetMusicFile(context, uri)
+    val displayName = managedFile?.name
+        ?: querySheetMusicDisplayName(resolver, uri)
         ?: uri.lastPathSegment?.substringAfterLast('/')
         ?: "Sheet music"
-    val mimeType = resolver.getType(uri)
+    val mimeType = if (managedFile != null) {
+        sheetMusicMimeTypeFromName(displayName)
+    } else {
+        resolver.getType(uri) ?: sheetMusicMimeTypeFromName(displayName)
+    }
     return when (sheetMusicDocumentKind(mimeType, displayName)) {
-        SheetMusicDocumentKind.PDF -> openPdfDocument(context, uri, displayName)
+        SheetMusicDocumentKind.PDF -> {
+            if (managedFile != null) {
+                openPdfFile(
+                    file = managedFile,
+                    displayName = displayName,
+                    deleteOnClose = false,
+                )
+            } else {
+                openPdfDocument(context, uri, displayName, mimeType)
+            }
+        }
         SheetMusicDocumentKind.IMAGE -> {
-            val bitmap = decodeSampledBitmap(resolver, uri)
+            val bitmap = if (managedFile != null) {
+                require(managedFile.isFile) {
+                    "The app-managed sheet-music copy is missing."
+                }
+                decodeSampledBitmap { options ->
+                    managedFile.inputStream().use {
+                        BitmapFactory.decodeStream(it, null, options)
+                    }
+                }
+            } else {
+                decodeSampledBitmap { options ->
+                    withSheetMusicInputStream(
+                        resolver = resolver,
+                        uri = uri,
+                        mimeType = mimeType,
+                    ) { source ->
+                        BitmapFactory.decodeStream(source, null, options)
+                    }
+                }
+            }
             ImageSheetMusicDocument(
                 displayName = displayName,
                 mimeType = mimeType ?: "image/*",
@@ -113,39 +147,68 @@ private fun openPdfDocument(
     context: Context,
     uri: Uri,
     displayName: String,
+    mimeType: String?,
 ): SheetMusicDocument {
-    val temporaryFile = copyPdfToTemporaryFile(context, uri)
+    val temporaryFile = copyPdfToTemporaryFile(context, uri, mimeType)
+    return try {
+        openPdfFile(
+            file = temporaryFile,
+            displayName = displayName,
+            deleteOnClose = true,
+        )
+    } catch (error: Throwable) {
+        temporaryFile.delete()
+        throw error
+    }
+}
+
+private fun openPdfFile(
+    file: File,
+    displayName: String,
+    deleteOnClose: Boolean,
+): SheetMusicDocument {
+    if (!file.isFile) {
+        throw FileNotFoundException("The app-managed sheet-music copy is missing.")
+    }
     val descriptor = ParcelFileDescriptor.open(
-        temporaryFile,
+        file,
         ParcelFileDescriptor.MODE_READ_ONLY,
     )
     val renderer = try {
         PdfRenderer(descriptor)
     } catch (error: SecurityException) {
         descriptor.close()
-        temporaryFile.delete()
         throw IllegalArgumentException("Password-protected PDFs are not supported.", error)
     } catch (error: Throwable) {
         descriptor.close()
-        temporaryFile.delete()
         throw error
     }
     if (renderer.pageCount <= 0) {
         renderer.close()
         descriptor.close()
-        temporaryFile.delete()
         error("This PDF does not contain any pages.")
     }
-    return PdfSheetMusicDocument(displayName, descriptor, renderer, temporaryFile)
+    return PdfSheetMusicDocument(
+        displayName = displayName,
+        descriptor = descriptor,
+        renderer = renderer,
+        fileToDeleteOnClose = file.takeIf { deleteOnClose },
+    )
 }
 
-private fun copyPdfToTemporaryFile(context: Context, uri: Uri): File {
+private fun copyPdfToTemporaryFile(
+    context: Context,
+    uri: Uri,
+    mimeType: String?,
+): File {
     val directory = File(context.cacheDir, "sheet-music-viewer").apply { mkdirs() }
     val destination = File.createTempFile("sheet-music-", ".pdf", directory)
     try {
-        val input = context.contentResolver.openInputStream(uri)
-            ?: throw FileNotFoundException("The selected sheet music could not be read.")
-        input.use { source ->
+        withSheetMusicInputStream(
+            resolver = context.contentResolver,
+            uri = uri,
+            mimeType = mimeType,
+        ) { source ->
             destination.outputStream().buffered().use { output ->
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                 var totalBytes = 0L
@@ -167,10 +230,11 @@ private fun copyPdfToTemporaryFile(context: Context, uri: Uri): File {
     }
 }
 
-private fun decodeSampledBitmap(resolver: ContentResolver, uri: Uri): Bitmap {
+private fun decodeSampledBitmap(
+    decode: (BitmapFactory.Options) -> Bitmap?,
+): Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        ?: throw FileNotFoundException("The selected image could not be read.")
+    decode(bounds)
     require(bounds.outWidth > 0 && bounds.outHeight > 0) {
         "The selected image could not be decoded."
     }
@@ -182,14 +246,22 @@ private fun decodeSampledBitmap(resolver: ContentResolver, uri: Uri): Bitmap {
         sampleSize *= 2
     }
     val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-    return resolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, options)
-    } ?: throw FileNotFoundException("The selected image could not be read.")
+    return decode(options)
+        ?: throw FileNotFoundException("The selected image could not be read.")
 }
+
+private fun sheetMusicMimeTypeFromName(displayName: String): String? =
+    when (displayName.substringAfterLast('.', "").lowercase()) {
+        "pdf" -> "application/pdf"
+        "png" -> "image/png"
+        "jpg", "jpeg" -> "image/jpeg"
+        "webp" -> "image/webp"
+        else -> null
+    }
 
 internal fun sheetMusicErrorMessage(error: Throwable): String = when (error) {
     is FileNotFoundException, is SecurityException ->
-        "LK Practice no longer has access to this file. Ask a grown-up to reattach it."
+        "LK Practice cannot read this attachment. Reattach it once so the app can keep a reliable private copy."
     is IllegalArgumentException -> error.message
         ?: "This PDF or image could not be opened."
     else -> "This PDF or image could not be opened in LK Practice."

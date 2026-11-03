@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.InputStream
 import java.util.UUID
 
 internal data class ImportedSheetMusic(
@@ -56,6 +57,9 @@ internal fun sheetMusicPickerMimeTypes(): Array<String> = arrayOf(
 internal class SheetMusicStorage private constructor(
     private val appContext: Context,
 ) {
+    fun isManaged(uri: Uri): Boolean =
+        resolveManagedSheetMusicFile(appContext, uri) != null
+
     suspend fun importFrom(sourceUri: Uri): ImportedSheetMusic = withContext(Dispatchers.IO) {
         val resolver = appContext.contentResolver
         val displayName = querySheetMusicDisplayName(resolver, sourceUri)
@@ -120,6 +124,76 @@ internal fun querySheetMusicDisplayName(
     }.getOrNull()
 }
 
+internal fun resolveManagedSheetMusicFile(
+    context: Context,
+    uri: Uri,
+): File? {
+    if (
+        uri.scheme != ContentResolver.SCHEME_CONTENT ||
+        uri.authority != "${context.packageName}.files"
+    ) {
+        return null
+    }
+    val segments = uri.pathSegments
+    if (
+        segments.firstOrNull() != SHEET_MUSIC_FILE_PROVIDER_ROOT ||
+        segments.size < 3
+    ) {
+        return null
+    }
+    return runCatching {
+        val root = File(context.filesDir, SHEET_MUSIC_DIRECTORY).canonicalFile
+        val candidate = segments.drop(1)
+            .fold(root) { parent, segment -> File(parent, segment) }
+            .canonicalFile
+        val rootPrefix = "${root.path}${File.separator}"
+        candidate.takeIf { it.path.startsWith(rootPrefix) }
+    }.getOrNull()
+}
+
+internal fun <T> withSheetMusicInputStream(
+    resolver: ContentResolver,
+    uri: Uri,
+    mimeType: String?,
+    block: (InputStream) -> T,
+): T {
+    if (uri.scheme == ContentResolver.SCHEME_FILE) {
+        val path = uri.path ?: throw FileNotFoundException(
+            "The selected sheet music does not have a readable file path.",
+        )
+        return File(path).inputStream().use(block)
+    }
+
+    var firstFailure: Throwable? = null
+    try {
+        resolver.openInputStream(uri)?.use { return block(it) }
+    } catch (error: Throwable) {
+        firstFailure = error
+    }
+
+    try {
+        resolver.openTypedAssetFileDescriptor(
+            uri,
+            mimeType ?: "*/*",
+            null,
+        )?.use { descriptor ->
+            descriptor.createInputStream().use { return block(it) }
+        }
+    } catch (error: Throwable) {
+        if (firstFailure == null) firstFailure = error
+    }
+
+    when (val failure = firstFailure) {
+        is SecurityException -> throw failure
+        is FileNotFoundException -> throw failure
+        else -> throw FileNotFoundException(
+            "The selected sheet music could not be read.",
+        ).also { notFound ->
+            if (failure != null) notFound.initCause(failure)
+        }
+    }
+}
+
 private fun safeSheetMusicFileName(
     displayName: String,
     mimeType: String?,
@@ -150,9 +224,11 @@ private fun copySheetMusicFile(
     sourceUri: Uri,
     destination: File,
 ) {
-    val input = resolver.openInputStream(sourceUri)
-        ?: throw FileNotFoundException("The selected sheet music could not be read.")
-    input.use { source ->
+    withSheetMusicInputStream(
+        resolver = resolver,
+        uri = sourceUri,
+        mimeType = resolver.getType(sourceUri),
+    ) { source ->
         destination.outputStream().buffered().use { output ->
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             var totalBytes = 0L
@@ -211,3 +287,4 @@ private fun validateImage(file: File) {
 internal const val MAX_SHEET_MUSIC_BYTES = 50L * 1024L * 1024L
 internal const val MAX_SHEET_MUSIC_IMAGE_DIMENSION = 4_096
 internal const val SHEET_MUSIC_DIRECTORY = "Sheet Music"
+internal const val SHEET_MUSIC_FILE_PROVIDER_ROOT = "sheet_music"

@@ -2,6 +2,7 @@ package com.lkeducation.lkpractice
 
 import android.app.Activity
 import android.content.ClipData
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -142,6 +143,8 @@ private fun PracticeApp(
     var showGrownUpTools by rememberSaveable { mutableStateOf(false) }
     var showPrivacySettings by rememberSaveable { mutableStateOf(false) }
     var sheetMusicViewerUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var sheetMusicViewerAllowsReattach by rememberSaveable { mutableStateOf(false) }
+    var previewSheetMusicAfterPick by rememberSaveable { mutableStateOf(false) }
     var csvDatePending by rememberSaveable(stateSaver = DateKeySaver) {
         mutableStateOf(state.currentDate)
     }
@@ -241,19 +244,31 @@ private fun PracticeApp(
         viewModel.endAdultExternalAction()
     }
     val pickSheetMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val shouldPreviewAfterImport = previewSheetMusicAfterPick
         if (uri != null) {
             val persistedPermission = persistReadPermission(uri)
             scope.launch {
                 runCatching { sheetMusicStorage.importFrom(uri) }
                     .onSuccess { imported ->
                         form = form.copy(sheetMusicUri = imported.uri)
-                        viewModel.setMessage("${imported.displayName} is ready to preview.")
+                        viewModel.setMessage(
+                            if (shouldPreviewAfterImport) {
+                                "${imported.displayName} was reattached. Close the preview and save the assignment."
+                            } else {
+                                "${imported.displayName} is ready to preview."
+                            },
+                        )
+                        if (shouldPreviewAfterImport) {
+                            sheetMusicViewerUri = imported.uri
+                            sheetMusicViewerAllowsReattach = true
+                        }
                     }
                     .onFailure { error ->
                         viewModel.setMessage(
                             error.message ?: "This sheet music could not be imported.",
                         )
                     }
+                previewSheetMusicAfterPick = false
                 if (persistedPermission) {
                     runCatching {
                         context.contentResolver.releasePersistableUriPermission(
@@ -265,6 +280,7 @@ private fun PracticeApp(
                 viewModel.endAdultExternalAction()
             }
         } else {
+            previewSheetMusicAfterPick = false
             viewModel.endAdultExternalAction()
         }
     }
@@ -340,8 +356,26 @@ private fun PracticeApp(
     sheetMusicViewerUri?.let { uriText ->
         SheetMusicViewerScreen(
             uri = uriText.toUri(),
-            onClose = { sheetMusicViewerUri = null },
+            onClose = {
+                sheetMusicViewerUri = null
+                sheetMusicViewerAllowsReattach = false
+            },
             onOpenExternally = ::openUri,
+            onReattach = if (
+                sheetMusicViewerAllowsReattach &&
+                viewModel.adultUnlocked
+            ) {
+                {
+                    sheetMusicViewerUri = null
+                    sheetMusicViewerAllowsReattach = false
+                    if (viewModel.beginAdultExternalAction()) {
+                        previewSheetMusicAfterPick = true
+                        pickSheetMusic.launch(sheetMusicPickerMimeTypes())
+                    }
+                }
+            } else {
+                null
+            },
         )
         return
     }
@@ -406,6 +440,7 @@ private fun PracticeApp(
                             onOpenUri = ::openUri,
                             onOpenSheetMusic = { uri ->
                                 sheetMusicViewerUri = uri.toString()
+                                sheetMusicViewerAllowsReattach = false
                             },
                             onFinish = { viewModel.finishPractice() },
                         )
@@ -433,13 +468,40 @@ private fun PracticeApp(
                                 },
                                 onPickSheetMusic = {
                                     if (viewModel.beginAdultExternalAction()) {
+                                        previewSheetMusicAfterPick = false
                                         pickSheetMusic.launch(
                                             sheetMusicPickerMimeTypes(),
                                         )
                                     }
                                 },
                                 onPreviewSheetMusic = { uriText ->
-                                    sheetMusicViewerUri = uriText
+                                    val uri = uriText.toUri()
+                                    if (sheetMusicStorage.isManaged(uri)) {
+                                        sheetMusicViewerUri = uriText
+                                        sheetMusicViewerAllowsReattach = true
+                                    } else if (
+                                        uri.scheme == ContentResolver.SCHEME_CONTENT ||
+                                        uri.scheme == ContentResolver.SCHEME_FILE
+                                    ) {
+                                        scope.launch {
+                                            runCatching {
+                                                sheetMusicStorage.importFrom(uri)
+                                            }.onSuccess { imported ->
+                                                form = form.copy(sheetMusicUri = imported.uri)
+                                                sheetMusicViewerUri = imported.uri
+                                                sheetMusicViewerAllowsReattach = true
+                                                viewModel.setMessage(
+                                                    "${imported.displayName} was copied into LK Practice. Close the preview and save the assignment.",
+                                                )
+                                            }.onFailure {
+                                                sheetMusicViewerUri = uriText
+                                                sheetMusicViewerAllowsReattach = true
+                                            }
+                                        }
+                                    } else {
+                                        sheetMusicViewerUri = uriText
+                                        sheetMusicViewerAllowsReattach = true
+                                    }
                                 },
                                 onImport = {
                                     csvDatePending = form.startDate

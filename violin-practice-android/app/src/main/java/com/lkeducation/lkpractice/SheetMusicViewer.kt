@@ -82,6 +82,7 @@ fun SheetMusicViewerScreen(
     uri: Uri,
     onClose: () -> Unit,
     onOpenExternally: (Uri, String) -> Unit,
+    onReattach: (() -> Unit)?,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -134,6 +135,7 @@ fun SheetMusicViewerScreen(
                 SheetMusicLoadState.Loading -> SheetMusicLoading()
                 is SheetMusicLoadState.Error -> SheetMusicError(
                     message = state.message,
+                    onReattach = onReattach,
                     onOpenExternally = {
                         onOpenExternally(
                             uri,
@@ -212,6 +214,7 @@ private fun SheetMusicLoading() {
 @Composable
 private fun SheetMusicError(
     message: String,
+    onReattach: (() -> Unit)?,
     onOpenExternally: (() -> Unit)?,
 ) {
     Box(
@@ -234,6 +237,11 @@ private fun SheetMusicError(
                 fontWeight = FontWeight.Bold,
             )
             Text(message, color = Muted)
+            if (onReattach != null) {
+                Button(onClick = onReattach) {
+                    Text("Reattach file")
+                }
+            }
             if (onOpenExternally != null) {
                 OutlinedButton(onClick = onOpenExternally) {
                     Text("Try another app")
@@ -278,6 +286,7 @@ private fun SheetMusicDocumentContent(document: SheetMusicDocument) {
                 SheetMusicPageState.Loading -> SheetMusicLoading()
                 is SheetMusicPageState.Error -> SheetMusicError(
                     message = state.message,
+                    onReattach = null,
                     onOpenExternally = null,
                 )
                 is SheetMusicPageState.Ready -> ZoomableSheetMusicPage(
