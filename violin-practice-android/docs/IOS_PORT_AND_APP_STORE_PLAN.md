@@ -1,11 +1,11 @@
 # LK Practice iOS Port and App Store Plan
 
-Status: planning only
-Last reviewed: November 2, 2026
+Status: Milestone A implemented in source; Simulator and iPad validation pending
+Last reviewed: November 3, 2026
 
 ## Goal
 
-Create an iPhone version of LK Practice with the same simple child-first practice workflow as the Android app, distribute it through TestFlight, and then publish it in the Apple App Store.
+Create a universal iPhone and iPad version of LK Practice with the same simple child-first practice workflow as the Android app, validate it first on the family iPad, distribute it through TestFlight, and then publish it in the Apple App Store.
 
 The Android APK/AAB cannot be converted or submitted directly to Apple. The recommended approach is a separate native SwiftUI application that follows the existing product model while replacing Android-specific services with iOS equivalents.
 
@@ -51,22 +51,22 @@ Recheck Apple's current submission, SDK, privacy, age-rating, and Kids Category 
 
 ## Phase 2: Create the iOS application shell
 
-- [ ] Create a SwiftUI iOS app named `LK Practice`.
+- [x] Create a SwiftUI iOS app named `LK Practice`.
 - [ ] Configure automatic code signing with the Apple Developer account.
 - [ ] Add development, TestFlight, and production build configurations.
-- [ ] Add the light-blue sky theme, typography, app icon, and launch screen.
-- [ ] Create the top-level launch flow:
+- [x] Add the light-blue sky theme, typography, app icon, and launch screen.
+- [x] Create the top-level launch flow:
   1. Privacy and parent consent
   2. Family/profile selection
   3. Student Today page
   4. Parent Space behind the adult gate
-- [ ] Add dependency containers/protocols so stores and managers can be replaced with test doubles.
+- [x] Add dependency containers/protocols so stores and managers can be replaced with test doubles.
 
 ## Phase 3: Port the shared data model
 
 Port the concepts and behavior, not the Android framework code.
 
-- [ ] Port the core models:
+- [x] Port the core models:
   - Household
   - Child profile
   - Assignment and assignment history
@@ -77,9 +77,9 @@ Port the concepts and behavior, not the Android framework code.
   - Mastery status
   - Teacher extension models
   - Typed date keys
-- [ ] Preserve stable IDs, revision numbers, timestamps, assignment versions, and recording names.
-- [ ] Define one documented portable archive format for future Android/iOS transfer.
-- [ ] Add model serialization and round-trip tests.
+- [x] Preserve stable IDs, revision numbers, timestamps, and assignment versions. Recording-name parity remains in the media milestone.
+- [x] Define a versioned local archive foundation for future Android/iOS transfer.
+- [x] Add model serialization and round-trip tests/checks.
 
 ## Phase 4: Replace Android persistence
 
@@ -104,16 +104,16 @@ Port the concepts and behavior, not the Android framework code.
 
 ### Milestone A: local practice MVP
 
-- [ ] First-launch privacy and parent confirmation.
-- [ ] Create, edit, select, and delete child profiles.
-- [ ] Parent Space PIN and adult gate.
-- [ ] Assignment creation and editing.
-- [ ] Today page with greeting, enabled practice modes, and weekly practice dots.
-- [ ] Start, pause, resume, and finish a practice session.
-- [ ] Repetition tracking.
-- [ ] In-session mode switching without resetting time or repetitions.
-- [ ] Reflection, student confidence, and completion-versus-mastery display.
-- [ ] Summary and practice history.
+- [x] First-launch privacy and parent confirmation.
+- [x] Create, edit, select, and delete child profiles.
+- [x] Parent Space PIN and adult gate.
+- [x] Assignment creation and editing.
+- [x] Today page with greeting, enabled practice modes, and weekly practice dots.
+- [x] Start, pause, resume, and finish a practice session.
+- [x] Repetition tracking.
+- [x] In-session mode switching without resetting time or repetitions.
+- [x] Reflection, student confidence, and completion-versus-mastery display.
+- [x] Summary and practice history.
 
 ### Milestone B: media and files
 
@@ -235,12 +235,16 @@ Cloud synchronization is not required for the iOS MVP.
 
 When this work is picked up again:
 
-1. Read this plan and the Android `FINAL_AUDIT.md`.
-2. Check the Android branch and commit status.
-3. Re-run the Android tests to freeze the behavioral baseline.
-4. Verify current Apple submission requirements.
-5. Confirm the Apple Developer account type and seller name.
-6. Install or update Xcode.
-7. Confirm the Kids Category and YouTube decisions.
-8. Create `violin-practice-ios`.
-9. Implement Milestone A before media, workbook, or cloud work.
+1. Read this plan, `violin-practice-ios/CURRENT_PROGRESS.md`, and the Android
+   `FINAL_AUDIT.md`.
+2. Free disk space, install full Xcode, and install an iOS Simulator runtime.
+3. Select full Xcode, regenerate `LKPractice.xcodeproj`, and run the first full
+   application build and Swift test suite.
+4. Validate Milestone A in an iPad Simulator, then on the family iPad.
+5. Fix any SwiftUI type-check, signing, accessibility, or runtime issues found
+   during device validation.
+6. Confirm the Apple Developer account type, seller name, Kids Category
+   decision, and YouTube decision.
+7. Verify current Apple submission requirements.
+8. Begin Milestone B with AVFoundation recording, reference media, and embedded
+   sheet music before workbook or cloud work.

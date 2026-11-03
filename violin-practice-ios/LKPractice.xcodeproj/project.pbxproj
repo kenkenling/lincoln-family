@@ -1,0 +1,402 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		16C82DB5373BCDC52D981CA6 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB0E74B706D34691927F82C /* TodayView.swift */; };
+		1EDD81DF662F5B7F05F9C5A9 /* ParentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F426215A7E0A85858DBB3B60 /* ParentViews.swift */; };
+		28A0B6BBE90B46818EC2C1D1 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AA3847A06477F7947D1250 /* AppSettings.swift */; };
+		49D2CEE66AB6BAE2AB0708F5 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE188B1938CD2083F57D5DB /* RootView.swift */; };
+		761B0DEF9090A7B245A80865 /* ProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9B7F6FF58229AACA121986 /* ProfileViews.swift */; };
+		811D81E53DFC1787A7BFF03D /* AssignmentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9395A840D34920D29D923B8 /* AssignmentViews.swift */; };
+		974AE6E72FF5A574758AAE8E /* LKPracticeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D0E3F41BB58677D8E2B020E /* LKPracticeApp.swift */; };
+		AB2604A42C88AE86E6A27277 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60F2B6DDA094EC8A950252B9 /* SharedComponents.swift */; };
+		B0CCAB42B33A8D97EF3AC28C /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4699D89B548E806AD5F9E660 /* AppModel.swift */; };
+		BF6EF6F9EC2C316D2A1848B7 /* ConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033EE00F8C693A3ECA5903A3 /* ConsentView.swift */; };
+		CD7417C788E4F2396665588F /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2958AB3AAFA799EC1ACB5DB8 /* Theme.swift */; };
+		D1685CCBA1BCC07C854D7C6D /* SummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 305D03960680B4E25A78B25B /* SummaryView.swift */; };
+		E037F791524DC4F515F1EBA4 /* LKPracticeCore in Frameworks */ = {isa = PBXBuildFile; productRef = F66D235A0AE0B42763A07066 /* LKPracticeCore */; };
+		E4E15CEF861E9FDA644630A4 /* PracticeSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C406759860FAC3307197AC7 /* PracticeSessionView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		033EE00F8C693A3ECA5903A3 /* ConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentView.swift; sourceTree = "<group>"; };
+		2958AB3AAFA799EC1ACB5DB8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		305D03960680B4E25A78B25B /* SummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryView.swift; sourceTree = "<group>"; };
+		4699D89B548E806AD5F9E660 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		4CB0E74B706D34691927F82C /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		59C05948EE39BA72095AE9C7 /* LKPractice.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LKPractice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		60F2B6DDA094EC8A950252B9 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
+		8C406759860FAC3307197AC7 /* PracticeSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionView.swift; sourceTree = "<group>"; };
+		8E35AE579F051714FD260CF1 /* violin-practice-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "violin-practice-ios"; path = .; sourceTree = SOURCE_ROOT; };
+		8F9B7F6FF58229AACA121986 /* ProfileViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViews.swift; sourceTree = "<group>"; };
+		99AA3847A06477F7947D1250 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		9D0E3F41BB58677D8E2B020E /* LKPracticeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LKPracticeApp.swift; sourceTree = "<group>"; };
+		CAE188B1938CD2083F57D5DB /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		F426215A7E0A85858DBB3B60 /* ParentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentViews.swift; sourceTree = "<group>"; };
+		F9395A840D34920D29D923B8 /* AssignmentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentViews.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3283EB303D3256CCE283D5EF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E037F791524DC4F515F1EBA4 /* LKPracticeCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0F2F0AE7D8E2DF0F0DFD79E0 = {
+			isa = PBXGroup;
+			children = (
+				88ECD041CC8939E32621F2F6 /* App */,
+				85873AA9E8571396FEAA1DBA /* AppSupport */,
+				37055A82598B4AA666C51E3A /* Packages */,
+				93F431CABD5DAF62C166CCD3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		37055A82598B4AA666C51E3A /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				8E35AE579F051714FD260CF1 /* violin-practice-ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		85873AA9E8571396FEAA1DBA /* AppSupport */ = {
+			isa = PBXGroup;
+			children = (
+				4699D89B548E806AD5F9E660 /* AppModel.swift */,
+				99AA3847A06477F7947D1250 /* AppSettings.swift */,
+			);
+			path = AppSupport;
+			sourceTree = "<group>";
+		};
+		88ECD041CC8939E32621F2F6 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F9395A840D34920D29D923B8 /* AssignmentViews.swift */,
+				033EE00F8C693A3ECA5903A3 /* ConsentView.swift */,
+				9D0E3F41BB58677D8E2B020E /* LKPracticeApp.swift */,
+				F426215A7E0A85858DBB3B60 /* ParentViews.swift */,
+				8C406759860FAC3307197AC7 /* PracticeSessionView.swift */,
+				8F9B7F6FF58229AACA121986 /* ProfileViews.swift */,
+				CAE188B1938CD2083F57D5DB /* RootView.swift */,
+				60F2B6DDA094EC8A950252B9 /* SharedComponents.swift */,
+				305D03960680B4E25A78B25B /* SummaryView.swift */,
+				2958AB3AAFA799EC1ACB5DB8 /* Theme.swift */,
+				4CB0E74B706D34691927F82C /* TodayView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		93F431CABD5DAF62C166CCD3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				59C05948EE39BA72095AE9C7 /* LKPractice.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4F37C96F9B91392EBBD6D266 /* LKPractice */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD36241355A4336426719D01 /* Build configuration list for PBXNativeTarget "LKPractice" */;
+			buildPhases = (
+				C4FF6F627DB1535B9C965DD2 /* Sources */,
+				3283EB303D3256CCE283D5EF /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LKPractice;
+			packageProductDependencies = (
+				F66D235A0AE0B42763A07066 /* LKPracticeCore */,
+			);
+			productName = LKPractice;
+			productReference = 59C05948EE39BA72095AE9C7 /* LKPractice.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		17747A6CF11CCEC997520F03 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					4F37C96F9B91392EBBD6D266 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = E3162391F587DAAA299A9CFB /* Build configuration list for PBXProject "LKPractice" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 0F2F0AE7D8E2DF0F0DFD79E0;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D33EAC6BAACE3A00D910C8E8 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 93F431CABD5DAF62C166CCD3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4F37C96F9B91392EBBD6D266 /* LKPractice */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C4FF6F627DB1535B9C965DD2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0CCAB42B33A8D97EF3AC28C /* AppModel.swift in Sources */,
+				28A0B6BBE90B46818EC2C1D1 /* AppSettings.swift in Sources */,
+				811D81E53DFC1787A7BFF03D /* AssignmentViews.swift in Sources */,
+				BF6EF6F9EC2C316D2A1848B7 /* ConsentView.swift in Sources */,
+				974AE6E72FF5A574758AAE8E /* LKPracticeApp.swift in Sources */,
+				1EDD81DF662F5B7F05F9C5A9 /* ParentViews.swift in Sources */,
+				E4E15CEF861E9FDA644630A4 /* PracticeSessionView.swift in Sources */,
+				761B0DEF9090A7B245A80865 /* ProfileViews.swift in Sources */,
+				49D2CEE66AB6BAE2AB0708F5 /* RootView.swift in Sources */,
+				AB2604A42C88AE86E6A27277 /* SharedComponents.swift in Sources */,
+				D1685CCBA1BCC07C854D7C6D /* SummaryView.swift in Sources */,
+				CD7417C788E4F2396665588F /* Theme.swift in Sources */,
+				16C82DB5373BCDC52D981CA6 /* TodayView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2363C89BB86536D991E0A17F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "LK Practice";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lkeducation.lkpractice;
+				PRODUCT_NAME = "LK Practice";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5432D65EEAF9DBAB071F8033 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "LK Practice";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lkeducation.lkpractice;
+				PRODUCT_NAME = "LK Practice";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9BA3F484A53EC4E650064703 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AA0EBFBA43365B11123D7954 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DD36241355A4336426719D01 /* Build configuration list for PBXNativeTarget "LKPractice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5432D65EEAF9DBAB071F8033 /* Debug */,
+				2363C89BB86536D991E0A17F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E3162391F587DAAA299A9CFB /* Build configuration list for PBXProject "LKPractice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0EBFBA43365B11123D7954 /* Debug */,
+				9BA3F484A53EC4E650064703 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D33EAC6BAACE3A00D910C8E8 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F66D235A0AE0B42763A07066 /* LKPracticeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LKPracticeCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 17747A6CF11CCEC997520F03 /* Project object */;
+}
