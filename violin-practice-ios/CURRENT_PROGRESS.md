@@ -1,8 +1,8 @@
 # LK Practice iOS Development Checkpoint
 
-Checkpoint date: November 3, 2026
-Project status: Milestone A implemented in source; full Xcode, Simulator, and
-physical-iPad validation remain pending.
+Checkpoint date: November 4, 2026
+Project status: Milestone B reference media is implemented and builds in the
+iPhone Simulator. Physical-iPad and real-file playback validation remain.
 
 ## What is implemented
 
@@ -33,6 +33,11 @@ physical-iPad validation remain pending.
 - Separate completion and mastery states
 - Parent summary, profile management, privacy information, and delete-all-data
 - Versioned local JSON archive in Application Support
+- YouTube reference playback in a temporary embedded web session
+- Local reference-video import into app-private storage and native playback
+- Reference-video start-time selection and assignment preview
+- PDF and image sheet-music import, validation, preview, sharing, and zoom
+- Attachment availability warnings, replacement, removal, and orphan cleanup
 
 ### Shared core
 
@@ -46,43 +51,29 @@ physical-iPad validation remain pending.
 
 ## Verification completed on this Mac
 
-The following checks passed on November 3, 2026:
+The following checks passed on November 4, 2026:
 
 - `xcodegen generate`
+- Xcode 27.2 iPhone Simulator build
+- Simulator installation and launch
+- 18 Swift tests in 4 suites
 - Generated Xcode project property-list validation
 - Privacy manifest validation
 - Asset catalog JSON validation
-- SwiftUI source parser check
-- Shared core and app-support compilation through Swift Package Manager
-- `LKPracticeCoreChecks`, covering date behavior, assignment ranges, session
-  modes, repetitions, daily progress isolation, mastery, assignment history,
-  profile isolation, serialization, and weekly summaries
+- Shared core and app-support compilation through Swift Package Manager,
+  including the private media store
+- YouTube URL parsing and assignment media validation tests
 - `git diff --check`
 
-The formal `swift test` suite is present, but it cannot run with this Mac's
-Command Line Tools alone. Compilation reaches the tests and then stops because
-Apple's `TestingMacros` plugin is unavailable without full Xcode. This is an
-environment blocker, not a recorded passing test run.
-
-The SwiftUI application has not yet been type-checked by full Xcode, launched
-in an iOS Simulator, signed, or installed on the family iPad.
-
-## Current machine blocker
-
-- Active developer directory: `/Library/Developer/CommandLineTools`
-- Full Xcode is not installed
-- XcodeGen 2.46.0 is installed
-- Only about 3.7 GB of disk space was free at this checkpoint, which is not
-  enough for full Xcode and an iOS Simulator runtime
+The new media flows still require manual validation with a real YouTube
+assignment, a selected MP4/MOV file, a multipage PDF, an image, and the family
+iPad.
 
 ## Intentionally deferred
 
-These belong to the next media and file milestones:
+These belong to later milestones:
 
 - Camera and microphone recording with AVFoundation
-- Local and reference-video playback
-- YouTube assigned-video playback
-- Embedded sheet-music viewer
 - Recording file naming, browsing, sharing, and deletion
 - CSV/XLSX import and export
 - SwiftData or Core Data repositories
@@ -92,17 +83,7 @@ These belong to the next media and file milestones:
 
 ## Resume steps
 
-1. Free enough disk space for Xcode, an iOS runtime, build products, and
-   Simulator data.
-2. Install the current full Xcode from the Mac App Store.
-3. Launch Xcode once and install the requested iOS platform components.
-4. Select full Xcode:
-
-   ```bash
-   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-   ```
-
-5. Regenerate and open the project:
+1. Regenerate and open the project:
 
    ```bash
    cd /Users/yualing/Documents/Lincoln/fun_projects/lincoln-family/violin-practice-ios
@@ -110,7 +91,7 @@ These belong to the next media and file milestones:
    open LKPractice.xcodeproj
    ```
 
-6. Run the first full build and tests:
+2. Run the build and tests:
 
    ```bash
    xcodebuild \
@@ -122,7 +103,7 @@ These belong to the next media and file milestones:
    swift test
    ```
 
-7. In Xcode, select an iPad Simulator and manually test:
+3. In Xcode, select an iPhone or iPad Simulator and manually test:
    - Consent and first profile setup
    - Parent PIN creation, lock, unlock, and recovery behavior
    - Single-day and multi-day assignment creation
@@ -131,10 +112,13 @@ These belong to the next media and file milestones:
    - Profile isolation and deletion
    - Delete all data and relaunch
    - Pacific-time date boundaries and date rollover
-8. Fix any SwiftUI type-check or runtime issues found by full Xcode.
-9. Select the LK Education development team under Signing & Capabilities,
+   - YouTube reference playback and external fallback
+   - Local MP4/MOV import, preview, and playback
+   - PDF and image sheet-music import, zoom, sharing, replacement, and removal
+4. Select the LK Education development team under Signing & Capabilities,
    connect the family iPad, and repeat the workflow on the real device.
-10. Begin Milestone B with AVFoundation recording and embedded sheet music.
+5. Begin the recording milestone with AVFoundation camera and microphone
+   capture.
 
 ## Important implementation notes
 

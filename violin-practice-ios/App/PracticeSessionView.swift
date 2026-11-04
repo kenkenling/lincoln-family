@@ -3,6 +3,7 @@ import SwiftUI
 
 struct PracticeSessionView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var showingSheetMusic = false
 
     var body: some View {
         ZStack {
@@ -13,6 +14,7 @@ struct PracticeSessionView: View {
                         sessionHeader(assignment)
                         modeSelector(assignment)
                         practicePanel(assignment)
+                        sheetMusicPanel(assignment)
                         progressPanel(assignment)
                         actionPanel(assignment)
                     }
@@ -22,6 +24,18 @@ struct PracticeSessionView: View {
                 }
             } else {
                 ProgressView()
+            }
+        }
+        .fullScreenCover(isPresented: $showingSheetMusic) {
+            if
+                let assignment = model.activeAssignment,
+                let reference = assignment.sheetMusicReference,
+                let fileURL = model.localMediaURL(for: reference)
+            {
+                SheetMusicViewer(
+                    fileURL: fileURL,
+                    displayName: model.localMediaDisplayName(for: reference)
+                )
             }
         }
     }
@@ -84,7 +98,21 @@ struct PracticeSessionView: View {
         }
     }
 
+    @ViewBuilder
     private func practicePanel(_ assignment: Assignment) -> some View {
+        if selectedMode != .playSolo, assignment.sourceType != .none {
+            ReferenceVideoPanel(
+                sourceType: assignment.sourceType,
+                referenceURL: assignment.referenceURL,
+                startSeconds: assignment.referenceStartSeconds,
+                localFileURL: model.localMediaURL(for: assignment.referenceURL)
+            )
+        } else {
+            instructionPanel(assignment)
+        }
+    }
+
+    private func instructionPanel(_ assignment: Assignment) -> some View {
         VStack(spacing: 15) {
             Image(systemName: panelImage)
                 .font(.system(size: 60))
@@ -99,6 +127,49 @@ struct PracticeSessionView: View {
         .frame(maxWidth: .infinity, minHeight: 220)
         .padding(20)
         .cloudCard(color: LKColor.cloudBlue.opacity(0.82))
+    }
+
+    @ViewBuilder
+    private func sheetMusicPanel(_ assignment: Assignment) -> some View {
+        if let reference = assignment.sheetMusicReference {
+            if model.localMediaExists(for: reference) {
+                Button {
+                    showingSheetMusic = true
+                } label: {
+                    HStack(spacing: 13) {
+                        Image(systemName: "doc.richtext.fill")
+                            .font(.title2)
+                            .foregroundStyle(LKColor.deepSky)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Open Sheet Music")
+                                .font(.headline.weight(.heavy))
+                                .foregroundStyle(LKColor.ink)
+                            Text(model.localMediaDisplayName(for: reference))
+                                .font(.caption)
+                                .foregroundStyle(LKColor.muted)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .foregroundStyle(LKColor.deepSky)
+                    }
+                    .padding(17)
+                    .frame(maxWidth: .infinity)
+                    .cloudCard(color: LKColor.lavenderCloud)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens a zoomable full-screen sheet-music viewer.")
+            } else {
+                Label(
+                    "Sheet music needs to be reattached in Parent Space.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(LKColor.danger)
+                .padding(17)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cloudCard(color: LKColor.lavenderCloud)
+            }
+        }
     }
 
     private func progressPanel(_ assignment: Assignment) -> some View {
@@ -181,12 +252,12 @@ struct PracticeSessionView: View {
 
     private func panelMessage(for assignment: Assignment) -> String {
         if selectedMode == .playSolo {
-            return "Focus on your sound. Camera recording arrives in the next Apple media milestone."
+            return "Focus on your sound, posture, rhythm, and the goal for this mission."
         }
         if assignment.sourceType == .none {
             return "No reference video is attached yet. You can still listen to a grown-up or switch practice steps."
         }
-        return "Reference playback arrives in the next Apple media milestone. Your timer and repetitions still work now."
+        return "Use the reference to listen carefully, then complete the assigned work."
     }
 }
 

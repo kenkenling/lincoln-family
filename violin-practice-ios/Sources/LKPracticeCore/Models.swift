@@ -160,6 +160,7 @@ public enum AssignmentValidationError: Error, Equatable, LocalizedError {
     case invalidDateRange
     case noPracticeModes
     case invalidGoal
+    case invalidReferenceVideo
 
     public var errorDescription: String? {
         switch self {
@@ -169,6 +170,8 @@ public enum AssignmentValidationError: Error, Equatable, LocalizedError {
             return "Choose at least one practice mode."
         case .invalidGoal:
             return "The practice goal must be greater than zero."
+        case .invalidReferenceVideo:
+            return "Choose a valid YouTube link or attach a readable device video."
         }
     }
 }
@@ -265,6 +268,28 @@ public struct Assignment: Codable, Equatable, Identifiable, Sendable {
         }
         guard validGoal else {
             throw AssignmentValidationError.invalidGoal
+        }
+
+        guard referenceStartSeconds >= 0 else {
+            throw AssignmentValidationError.invalidReferenceVideo
+        }
+        switch sourceType {
+        case .none:
+            break
+        case .youtube:
+            guard
+                let referenceURL,
+                YouTubeReference.videoID(from: referenceURL) != nil
+            else {
+                throw AssignmentValidationError.invalidReferenceVideo
+            }
+        case .localVideo:
+            guard
+                let referenceURL,
+                !referenceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                throw AssignmentValidationError.invalidReferenceVideo
+            }
         }
     }
 }

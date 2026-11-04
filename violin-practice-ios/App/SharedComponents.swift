@@ -15,6 +15,16 @@ extension PracticeMode {
     }
 }
 
+extension SourceType {
+    var title: String {
+        switch self {
+        case .none: "None"
+        case .youtube: "YouTube"
+        case .localVideo: "Video File"
+        }
+    }
+}
+
 extension AssignmentType {
     var title: String {
         switch self {
@@ -56,13 +66,13 @@ extension MasteryStatus {
 }
 
 func friendlyDate(_ date: DateKey) -> String {
-    date.date(in: .localCalendar).formatted(
+    date.date(in: DateKey.localCalendar).formatted(
         .dateTime.weekday(.wide).month(.abbreviated).day().year()
     )
 }
 
 func shortDate(_ date: DateKey) -> String {
-    date.date(in: .localCalendar).formatted(.dateTime.month(.abbreviated).day())
+    date.date(in: DateKey.localCalendar).formatted(.dateTime.month(.abbreviated).day())
 }
 
 func durationLabel(_ seconds: Int) -> String {

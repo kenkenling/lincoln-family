@@ -101,6 +101,11 @@ private struct AssignmentManagementRow: View {
                 Text("\(assignment.type.title) · \(goalLabel(assignment)) · revision \(assignment.revision)")
                     .font(.caption)
                     .foregroundStyle(LKColor.muted)
+                if assignment.sourceType != .none || assignment.sheetMusicReference != nil {
+                    Text(mediaSummary)
+                        .font(.caption)
+                        .foregroundStyle(LKColor.deepSky)
+                }
             }
             Spacer()
             Menu {
@@ -135,6 +140,21 @@ private struct AssignmentManagementRow: View {
             return friendlyDate(assignment.startDate)
         }
         return "\(shortDate(assignment.startDate)) – \(shortDate(assignment.endDate))"
+    }
+
+    private var mediaSummary: String {
+        var parts: [String] = []
+        if assignment.sourceType != .none {
+            parts.append(
+                assignment.sourceType == .youtube
+                    ? "YouTube reference"
+                    : "Video reference"
+            )
+        }
+        if assignment.sheetMusicReference != nil {
+            parts.append("Sheet music")
+        }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -233,15 +253,15 @@ struct AssignmentEditorView: View {
                     Text("At least one step stays enabled. Students can switch freely during practice.")
                 }
 
-                Section("Media") {
-                    Label("Reference videos and sheet music arrive in the next iOS milestone.", systemImage: "photo.on.rectangle.angled")
-                        .foregroundStyle(LKColor.muted)
-                }
+                AssignmentMediaEditor(draft: $draft)
             }
             .navigationTitle(draft.editingID == nil ? "Add Assignment" : "Edit Assignment")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        model.cleanupUnreferencedMedia()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -252,6 +272,7 @@ struct AssignmentEditorView: View {
                     .disabled(
                         draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                             draft.enabledModes.isEmpty ||
+                            !draft.hasValidReferenceVideo ||
                             !AssignmentDates.isValid(
                                 from: draft.startDate,
                                 to: draft.endDate
@@ -260,11 +281,12 @@ struct AssignmentEditorView: View {
                 }
             }
         }
+        .interactiveDismissDisabled()
     }
 
     private var startDateBinding: Binding<Date> {
         Binding {
-            draft.startDate.date(in: .localCalendar)
+            draft.startDate.date(in: DateKey.localCalendar)
         } set: { value in
             let newStart = DateKey(date: value)
             draft.startDate = newStart
@@ -281,14 +303,15 @@ struct AssignmentEditorView: View {
 
     private var endDateBinding: Binding<Date> {
         Binding {
-            draft.endDate.date(in: .localCalendar)
+            draft.endDate.date(in: DateKey.localCalendar)
         } set: { value in
             draft.endDate = DateKey(date: value)
         }
     }
 
     private var endDateRange: ClosedRange<Date> {
-        draft.startDate.date(in: .localCalendar)...
-            draft.startDate.adding(days: 29).date(in: .localCalendar)
+        let start = draft.startDate.date(in: DateKey.localCalendar)
+        let end = draft.startDate.adding(days: 29).date(in: DateKey.localCalendar)
+        return start...end
     }
 }

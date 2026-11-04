@@ -25,13 +25,13 @@ struct PrivacyPolicySection: Identifiable {
 }
 
 enum ApplePrivacyPolicy {
-    static let version = "2026-11-03-v1"
+    static let version = "2026-11-04-v2"
 
     static let sections = [
         PrivacyPolicySection(
             id: "local-data",
             title: "Data stays on this device",
-            body: "LK Practice stores student profiles, assignments, practice progress, reflections, and attached files in the app’s private storage. This first Apple version has no LK Practice account or cloud synchronization."
+            body: "LK Practice stores student profiles, assignments, practice progress, reflections, reference-video files, and sheet music in the app’s private storage. This Apple version has no LK Practice account or cloud synchronization."
         ),
         PrivacyPolicySection(
             id: "no-tracking",
@@ -45,8 +45,13 @@ enum ApplePrivacyPolicy {
         ),
         PrivacyPolicySection(
             id: "media",
-            title: "Recordings and sheet music",
-            body: "Media support will use files selected or recorded by the family. Recordings remain local unless a parent deliberately shares them."
+            title: "Reference media and sheet music",
+            body: "Files selected by the family are copied into private app storage. A parent can remove an attachment or erase all app data. Files are shared only when a parent deliberately uses a system share action."
+        ),
+        PrivacyPolicySection(
+            id: "youtube",
+            title: "Optional YouTube playback",
+            body: "When a family opens an assigned YouTube reference, the embedded player connects to YouTube. YouTube receives the normal network and device information needed to serve the video under its own terms. LK Practice uses a temporary web session and does not add advertising or analytics SDKs."
         ),
         PrivacyPolicySection(
             id: "delete",

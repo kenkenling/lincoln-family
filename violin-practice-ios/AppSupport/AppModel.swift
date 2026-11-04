@@ -47,6 +47,10 @@ struct AssignmentDraft: Equatable {
     var targetRepetitions = 3
     var targetMinutes = 5
     var enabledModes: Set<PracticeMode> = [.playSolo]
+    var sourceType: SourceType = .none
+    var referenceURL: String?
+    var referenceStartSeconds = 0
+    var sheetMusicReference: String?
 
     static func new(on date: DateKey) -> AssignmentDraft {
         AssignmentDraft(startDate: date, endDate: date)
@@ -62,7 +66,11 @@ struct AssignmentDraft: Equatable {
         goalType: PracticeGoalType = .repetitions,
         targetRepetitions: Int = 3,
         targetMinutes: Int = 5,
-        enabledModes: Set<PracticeMode> = [.playSolo]
+        enabledModes: Set<PracticeMode> = [.playSolo],
+        sourceType: SourceType = .none,
+        referenceURL: String? = nil,
+        referenceStartSeconds: Int = 0,
+        sheetMusicReference: String? = nil
     ) {
         self.editingID = editingID
         self.title = title
@@ -74,6 +82,10 @@ struct AssignmentDraft: Equatable {
         self.targetRepetitions = targetRepetitions
         self.targetMinutes = targetMinutes
         self.enabledModes = enabledModes
+        self.sourceType = sourceType
+        self.referenceURL = referenceURL
+        self.referenceStartSeconds = referenceStartSeconds
+        self.sheetMusicReference = sheetMusicReference
     }
 
     init(assignment: Assignment) {
@@ -87,6 +99,23 @@ struct AssignmentDraft: Equatable {
         targetRepetitions = assignment.targetRepetitions
         targetMinutes = assignment.targetMinutes
         enabledModes = assignment.enabledModes
+        sourceType = assignment.sourceType
+        referenceURL = assignment.referenceURL
+        referenceStartSeconds = assignment.referenceStartSeconds
+        sheetMusicReference = assignment.sheetMusicReference
+    }
+
+    var hasValidReferenceVideo: Bool {
+        switch sourceType {
+        case .none:
+            return true
+        case .youtube:
+            return referenceURL.flatMap(YouTubeReference.videoID(from:)) != nil
+        case .localVideo:
+            return !(referenceURL ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+        }
     }
 }
 
@@ -110,18 +139,21 @@ final class AppModel: ObservableObject {
     private let consentStore: PrivacyConsentStore
     private let pinStore: ParentPINStore
     private let archiveStore: LocalPracticeArchiveStore
+    private let mediaStore: LocalMediaStore
     private var persistenceTask: Task<Void, Never>?
 
     init(
         consentStore: PrivacyConsentStore = PrivacyConsentStore(),
         pinStore: ParentPINStore = ParentPINStore(),
-        archiveStore: LocalPracticeArchiveStore? = nil
+        archiveStore: LocalPracticeArchiveStore? = nil,
+        mediaStore: LocalMediaStore? = nil
     ) {
         self.consentStore = consentStore
         self.pinStore = pinStore
         self.archiveStore = archiveStore ?? LocalPracticeArchiveStore(
             fileURL: Self.defaultArchiveURL
         )
+        self.mediaStore = mediaStore ?? LocalMediaStore()
         let accepted = consentStore.hasAcceptedCurrentPolicy
         consentAccepted = accepted
         isLoading = accepted
@@ -298,8 +330,48 @@ final class AppModel: ObservableObject {
         do {
             try engine?.deleteProfile(profileID)
             refreshAndPersist(immediately: true)
+            cleanupUnreferencedMedia()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func importReferenceVideo(from sourceURL: URL) async -> String? {
+        do {
+            let imported = try await mediaStore.importReferenceVideo(from: sourceURL)
+            return imported.reference
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func importSheetMusic(from sourceURL: URL) async -> String? {
+        do {
+            let imported = try await mediaStore.importSheetMusic(from: sourceURL)
+            return imported.reference
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func localMediaURL(for reference: String?) -> URL? {
+        mediaStore.url(for: reference)
+    }
+
+    func localMediaDisplayName(for reference: String?) -> String {
+        mediaStore.displayName(for: reference) ?? "Attached file"
+    }
+
+    func localMediaExists(for reference: String?) -> Bool {
+        mediaStore.fileExists(for: reference)
+    }
+
+    func cleanupUnreferencedMedia() {
+        let references = managedMediaReferences()
+        Task {
+            try? await mediaStore.prune(keeping: references)
         }
     }
 
@@ -314,6 +386,12 @@ final class AppModel: ObservableObject {
         let existing = draft.editingID.flatMap { id in
             engine.activeSnapshot?.assignments.first { $0.id == id }
         }
+        let cleanReference = draft.referenceURL?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let savedReference = draft.sourceType == .none ||
+            cleanReference?.isEmpty != false
+            ? nil
+            : cleanReference
 
         do {
             let assignment = try Assignment(
@@ -328,10 +406,10 @@ final class AppModel: ObservableObject {
                 targetRepetitions: draft.targetRepetitions,
                 targetMinutes: draft.targetMinutes,
                 enabledModes: draft.enabledModes,
-                sourceType: existing?.sourceType ?? .none,
-                referenceURL: existing?.referenceURL,
-                referenceStartSeconds: existing?.referenceStartSeconds ?? 0,
-                sheetMusicReference: existing?.sheetMusicReference,
+                sourceType: draft.sourceType,
+                referenceURL: savedReference,
+                referenceStartSeconds: max(0, draft.referenceStartSeconds),
+                sheetMusicReference: draft.sheetMusicReference,
                 teacherID: existing?.teacherID,
                 revision: existing?.revision ?? 1,
                 archivedAtMillis: existing?.archivedAtMillis,
@@ -340,6 +418,7 @@ final class AppModel: ObservableObject {
             )
             try engine.addAssignment(assignment)
             refreshAndPersist()
+            cleanupUnreferencedMedia()
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -532,6 +611,7 @@ final class AppModel: ObservableObject {
         persistenceTask?.cancel()
         do {
             try await archiveStore.delete()
+            try await mediaStore.deleteAll()
             consentStore.deleteAll()
             try pinStore.delete()
             engine = nil
@@ -573,6 +653,7 @@ final class AppModel: ObservableObject {
                 currentDate: .today()
             )
         }
+        try? await mediaStore.prune(keeping: managedMediaReferences())
         isLoading = false
         stateRevision += 1
     }
@@ -604,6 +685,32 @@ final class AppModel: ObservableObject {
                 errorMessage = "Practice changes could not be saved: \(error.localizedDescription)"
             }
         }
+    }
+
+    private func managedMediaReferences() -> Set<String> {
+        guard let engine else {
+            return []
+        }
+        var references = Set<String>()
+        for snapshot in engine.snapshotsByProfileID.values {
+            for assignment in snapshot.assignments {
+                if let referenceURL = assignment.referenceURL {
+                    references.insert(referenceURL)
+                }
+                if let sheetMusicReference = assignment.sheetMusicReference {
+                    references.insert(sheetMusicReference)
+                }
+            }
+            for history in snapshot.assignmentHistory {
+                if let referenceURL = history.previousAssignment.referenceURL {
+                    references.insert(referenceURL)
+                }
+                if let sheetMusicReference = history.previousAssignment.sheetMusicReference {
+                    references.insert(sheetMusicReference)
+                }
+            }
+        }
+        return references
     }
 
     private static var defaultArchiveURL: URL {

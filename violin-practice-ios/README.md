@@ -21,34 +21,34 @@ The local-practice foundation is implemented:
 - Completion and mastery displayed separately
 - Parent summaries, profile management, privacy policy, and delete-all-data
 - Private JSON archive in Application Support
+- YouTube and app-managed local reference-video playback
+- PDF and image sheet-music import, preview, sharing, and zoomable viewing
+- Private attachment copies with validation, size limits, and orphan cleanup
 - Universal iPhone/iPad project configuration and LK branding
 
-Camera recording, local/reference video playback, embedded sheet music, workbook
-import/export, and YouTube are intentionally deferred to the next media milestone.
+Camera recording, workbook import/export, and cloud synchronization remain
+deferred to later milestones.
 
-## Current machine prerequisite
+## Current development environment
 
-This Mac currently has Apple Command Line Tools but not the full Xcode app.
-The shared Swift core can be built now, but an iPad application cannot be signed
-or installed until Xcode and the iOS platform are installed.
+This Mac has Xcode 27.2, the iOS 27.2 SDK and Simulator runtime, Swift 6.4.2,
+and XcodeGen 2.46.0. The app builds and runs in the iPhone Simulator.
 
 ## Generate and run the Xcode project
 
-1. Install the current full Xcode from the Mac App Store.
-2. Launch Xcode once and let it install the iOS platform components.
-3. Select full Xcode:
+1. Select the installed full Xcode:
 
    ```bash
-   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+   sudo xcode-select -s /Applications/Xcode-27.2.0.app/Contents/Developer
    ```
 
-4. Install XcodeGen:
+2. Install XcodeGen if needed:
 
    ```bash
    brew install xcodegen
    ```
 
-5. Generate and open the project:
+3. Generate and open the project:
 
    ```bash
    cd /Users/yualing/Documents/Lincoln/fun_projects/lincoln-family/violin-practice-ios
@@ -56,24 +56,25 @@ or installed until Xcode and the iOS platform are installed.
    open LKPractice.xcodeproj
    ```
 
-6. In Xcode, select the `LKPractice` target, choose the LK Education development
+4. In Xcode, select the `LKPractice` target, choose the LK Education development
    team under Signing & Capabilities, and keep bundle ID
    `com.lkeducation.lkpractice`.
-7. Connect the iPad by cable, trust the Mac, enable Developer Mode if prompted,
+5. Connect the iPad by cable, trust the Mac, enable Developer Mode if prompted,
    select the iPad as the run destination, and press Run.
 
 ## Local verification
 
-The framework-free checks work with Command Line Tools:
-
-```bash
-swift run LKPracticeCoreChecks
-```
-
-After full Xcode is installed:
+Run:
 
 ```bash
 swift test
+xcodebuild \
+  -project LKPractice.xcodeproj \
+  -scheme LKPractice \
+  -configuration Debug \
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO \
+  build
 ```
 
 The `project.yml` file is the source of truth for the generated Xcode project.

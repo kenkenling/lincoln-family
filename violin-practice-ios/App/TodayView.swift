@@ -11,7 +11,7 @@ struct TodayView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .stretch, spacing: 18) {
+                        HStack(alignment: .top, spacing: 18) {
                             TodayHero()
                             WeeklyDotsCard()
                         }
@@ -221,10 +221,23 @@ private struct AssignmentMissionCard: View {
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(LKColor.muted)
 
+            if assignment.sourceType != .none || assignment.sheetMusicReference != nil {
+                HStack(spacing: 14) {
+                    if assignment.sourceType != .none {
+                        Label("Reference video", systemImage: "play.rectangle.fill")
+                    }
+                    if assignment.sheetMusicReference != nil {
+                        Label("Sheet music", systemImage: "doc.richtext.fill")
+                    }
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(LKColor.deepSky)
+            }
+
             if assignment.enabledModes.count > 1 {
                 Picker("Starting mode", selection: Binding(
                     get: { selectedMode },
-                    set: onSelectMode
+                    set: { onSelectMode($0) }
                 )) {
                     ForEach(PracticeMode.allCases.filter(assignment.enabledModes.contains), id: \.self) {
                         mode in

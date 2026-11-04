@@ -51,9 +51,10 @@ struct RootView: View {
 
 struct MainShellView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(preferredCompactColumn: $preferredCompactColumn) {
             List {
                 if let profile = model.activeProfile {
                     Section("Practicing Today") {
@@ -88,6 +89,7 @@ struct MainShellView: View {
                 Section {
                     Button {
                         model.mainArea = .today
+                        preferredCompactColumn = .detail
                     } label: {
                         Label("Today’s Practice", systemImage: "sun.max.fill")
                     }
@@ -100,6 +102,7 @@ struct MainShellView: View {
                             Button {
                                 model.parentSection = section
                                 model.mainArea = .parent
+                                preferredCompactColumn = .detail
                             } label: {
                                 Label(section.title, systemImage: section.systemImage)
                             }
@@ -117,6 +120,9 @@ struct MainShellView: View {
                     } else {
                         Button {
                             model.openParentSpace()
+                            if model.parentUnlocked {
+                                preferredCompactColumn = .detail
+                            }
                         } label: {
                             Label("Parent Space", systemImage: "lock.fill")
                         }
@@ -136,6 +142,9 @@ struct MainShellView: View {
             }
         }
         .tint(LKColor.deepSky)
+        .onChange(of: model.mainArea) { _, _ in
+            preferredCompactColumn = .detail
+        }
     }
 
     @ViewBuilder
