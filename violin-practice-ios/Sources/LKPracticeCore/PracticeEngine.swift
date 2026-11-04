@@ -344,6 +344,26 @@ public final class PracticeEngine {
     }
 
     @discardableResult
+    public func attachRecording(path: String) throws -> String? {
+        let (profileID, snapshot, sessionIndex, assignment) = try activeSessionContext()
+        var updated = snapshot
+        let previousPath = updated.sessions[sessionIndex].recordingPath
+        updated.sessions[sessionIndex].recordingPath = path
+        updated.events.append(
+            PracticeEvent(
+                id: makeID(),
+                childProfileID: profileID,
+                assignmentID: assignment.id,
+                date: currentDate,
+                atMillis: nowMillis(),
+                message: "Saved a private practice recording"
+            )
+        )
+        snapshotsByProfileID[profileID] = updated
+        return previousPath
+    }
+
+    @discardableResult
     public func finishPractice(elapsedSeconds: Int) throws -> PracticeSession {
         let (profileID, snapshot, sessionIndex, assignment) = try activeSessionContext()
         var updated = snapshot

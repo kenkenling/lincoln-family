@@ -1,8 +1,9 @@
 # LK Practice iOS Development Checkpoint
 
 Checkpoint date: November 4, 2026
-Project status: Milestone B reference media is implemented and builds in the
-iPhone Simulator. Physical-iPad and real-file playback validation remain.
+Project status: Milestone C student camera recording is implemented and builds
+in the iPhone Simulator. Physical-iPhone/iPad camera and microphone validation
+remain.
 
 ## What is implemented
 
@@ -10,7 +11,7 @@ iPhone Simulator. Physical-iPad and real-file playback validation remain.
 
 - Native SwiftUI application for iPhone and iPad
 - Bundle ID: `com.lkeducation.lkpractice`
-- App version: `1.0.0` (build `1`)
+- App version: `1.0.0` (build `3`)
 - Minimum deployment target: iOS 17
 - XcodeGen source configuration in `project.yml`
 - Generated `LKPractice.xcodeproj`
@@ -38,6 +39,14 @@ iPhone Simulator. Physical-iPad and real-file playback validation remain.
 - Reference-video start-time selection and assignment preview
 - PDF and image sheet-music import, validation, preview, sharing, and zoom
 - Attachment availability warnings, replacement, removal, and orphan cleanup
+- Live front-camera preview in Play Along and Play Solo
+- Equal 16:9 teacher-reference and student-camera surfaces in Play Along
+- Three-second recording countdown, stop-and-save flow, and silent-video
+  fallback when microphone permission is denied
+- App-private practice-take storage with safe filenames and orphan cleanup
+- Last-take association with the active practice session
+- Parent Summary playback and deliberate system sharing for saved takes
+- Camera lifecycle handling when changing modes or leaving the app
 
 ### Shared core
 
@@ -56,25 +65,26 @@ The following checks passed on November 4, 2026:
 - `xcodegen generate`
 - Xcode 27.2 iPhone Simulator build
 - Simulator installation and launch
-- 18 Swift tests in 4 suites
+- 19 Swift tests in 4 suites
 - Generated Xcode project property-list validation
 - Privacy manifest validation
 - Asset catalog JSON validation
 - Shared core and app-support compilation through Swift Package Manager,
-  including the private media store
+  including the private media and recording stores
 - YouTube URL parsing and assignment media validation tests
+- Active-session recording association and replacement test
 - `git diff --check`
 
-The new media flows still require manual validation with a real YouTube
-assignment, a selected MP4/MOV file, a multipage PDF, an image, and the family
-iPad.
+The media flows still require manual validation with a real YouTube assignment,
+a selected MP4/MOV file, a multipage PDF, an image, and the family iPad. The
+Simulator cannot validate real camera or microphone capture, so recording must
+also be tested on a physical iPhone or iPad.
 
 ## Intentionally deferred
 
 These belong to later milestones:
 
-- Camera and microphone recording with AVFoundation
-- Recording file naming, browsing, sharing, and deletion
+- Per-session recording galleries and individual recording deletion
 - CSV/XLSX import and export
 - SwiftData or Core Data repositories
 - Android-to-iOS archive import
@@ -115,10 +125,13 @@ These belong to later milestones:
    - YouTube reference playback and external fallback
    - Local MP4/MOV import, preview, and playback
    - PDF and image sheet-music import, zoom, sharing, replacement, and removal
+   - Play Along shows the teacher reference and live student camera together
+   - Play Solo shows the live student camera
+   - Record, stop, save, review, and share a student take
 4. Select the LK Education development team under Signing & Capabilities,
    connect the family iPad, and repeat the workflow on the real device.
-5. Begin the recording milestone with AVFoundation camera and microphone
-   capture.
+5. Validate front-camera framing, microphone audio, orientation, interruption,
+   and saved-take playback on the real device.
 
 ## Important implementation notes
 

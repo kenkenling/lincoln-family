@@ -31,6 +31,7 @@ struct ConsentView: View {
                         ConsentLine("Practice plans and progress stay in this app’s private storage.")
                         ConsentLine("There is no LK Practice account, advertising, analytics, or tracking.")
                         ConsentLine("Parent Space controls assignments, profiles, sharing, and deletion.")
+                        ConsentLine("Student recordings stay private on this device until a parent shares them.")
                         ConsentLine("Assigned YouTube videos connect to YouTube only when opened.")
                         ConsentLine("You can erase all app data at any time.")
                     }

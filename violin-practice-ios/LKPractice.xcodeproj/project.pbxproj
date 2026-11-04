@@ -10,6 +10,7 @@
 		16C82DB5373BCDC52D981CA6 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB0E74B706D34691927F82C /* TodayView.swift */; };
 		1EDD81DF662F5B7F05F9C5A9 /* ParentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F426215A7E0A85858DBB3B60 /* ParentViews.swift */; };
 		28A0B6BBE90B46818EC2C1D1 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AA3847A06477F7947D1250 /* AppSettings.swift */; };
+		38C228B67326D54C68EF223E /* StudentCameraRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB62CED5059E3C52BBD3788 /* StudentCameraRecorder.swift */; };
 		49D2CEE66AB6BAE2AB0708F5 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE188B1938CD2083F57D5DB /* RootView.swift */; };
 		4D231592763DB08B6A434FA0 /* MediaViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94AE514226A8B09B29D74EA /* MediaViews.swift */; };
 		761B0DEF9090A7B245A80865 /* ProfileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9B7F6FF58229AACA121986 /* ProfileViews.swift */; };
@@ -23,6 +24,7 @@
 		D1685CCBA1BCC07C854D7C6D /* SummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 305D03960680B4E25A78B25B /* SummaryView.swift */; };
 		E037F791524DC4F515F1EBA4 /* LKPracticeCore in Frameworks */ = {isa = PBXBuildFile; productRef = F66D235A0AE0B42763A07066 /* LKPracticeCore */; };
 		E4E15CEF861E9FDA644630A4 /* PracticeSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C406759860FAC3307197AC7 /* PracticeSessionView.swift */; };
+		E8571D8364F4F6CC4B50B590 /* LocalRecordingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68F0055564DB53F0B0FF4FBB /* LocalRecordingStore.swift */; };
 		F344B522A8693AFB7C97615D /* LocalMediaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85019A0D9EDDFF860B9BB024 /* LocalMediaStore.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,6 +36,7 @@
 		4CB0E74B706D34691927F82C /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		59C05948EE39BA72095AE9C7 /* LKPractice.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LKPractice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		60F2B6DDA094EC8A950252B9 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
+		68F0055564DB53F0B0FF4FBB /* LocalRecordingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRecordingStore.swift; sourceTree = "<group>"; };
 		85019A0D9EDDFF860B9BB024 /* LocalMediaStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMediaStore.swift; sourceTree = "<group>"; };
 		8C406759860FAC3307197AC7 /* PracticeSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionView.swift; sourceTree = "<group>"; };
 		8E35AE579F051714FD260CF1 /* violin-practice-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "violin-practice-ios"; path = .; sourceTree = SOURCE_ROOT; };
@@ -45,6 +48,7 @@
 		F426215A7E0A85858DBB3B60 /* ParentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentViews.swift; sourceTree = "<group>"; };
 		F9395A840D34920D29D923B8 /* AssignmentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentViews.swift; sourceTree = "<group>"; };
 		F94AE514226A8B09B29D74EA /* MediaViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaViews.swift; sourceTree = "<group>"; };
+		FBB62CED5059E3C52BBD3788 /* StudentCameraRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentCameraRecorder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +87,7 @@
 				4699D89B548E806AD5F9E660 /* AppModel.swift */,
 				99AA3847A06477F7947D1250 /* AppSettings.swift */,
 				85019A0D9EDDFF860B9BB024 /* LocalMediaStore.swift */,
+				68F0055564DB53F0B0FF4FBB /* LocalRecordingStore.swift */,
 			);
 			path = AppSupport;
 			sourceTree = "<group>";
@@ -100,6 +105,7 @@
 				8F9B7F6FF58229AACA121986 /* ProfileViews.swift */,
 				CAE188B1938CD2083F57D5DB /* RootView.swift */,
 				60F2B6DDA094EC8A950252B9 /* SharedComponents.swift */,
+				FBB62CED5059E3C52BBD3788 /* StudentCameraRecorder.swift */,
 				305D03960680B4E25A78B25B /* SummaryView.swift */,
 				2958AB3AAFA799EC1ACB5DB8 /* Theme.swift */,
 				4CB0E74B706D34691927F82C /* TodayView.swift */,
@@ -185,12 +191,14 @@
 				BF6EF6F9EC2C316D2A1848B7 /* ConsentView.swift in Sources */,
 				974AE6E72FF5A574758AAE8E /* LKPracticeApp.swift in Sources */,
 				F344B522A8693AFB7C97615D /* LocalMediaStore.swift in Sources */,
+				E8571D8364F4F6CC4B50B590 /* LocalRecordingStore.swift in Sources */,
 				4D231592763DB08B6A434FA0 /* MediaViews.swift in Sources */,
 				1EDD81DF662F5B7F05F9C5A9 /* ParentViews.swift in Sources */,
 				E4E15CEF861E9FDA644630A4 /* PracticeSessionView.swift in Sources */,
 				761B0DEF9090A7B245A80865 /* ProfileViews.swift in Sources */,
 				49D2CEE66AB6BAE2AB0708F5 /* RootView.swift in Sources */,
 				AB2604A42C88AE86E6A27277 /* SharedComponents.swift in Sources */,
+				38C228B67326D54C68EF223E /* StudentCameraRecorder.swift in Sources */,
 				D1685CCBA1BCC07C854D7C6D /* SummaryView.swift in Sources */,
 				CD7417C788E4F2396665588F /* Theme.swift in Sources */,
 				16C82DB5373BCDC52D981CA6 /* TodayView.swift in Sources */,
@@ -206,10 +214,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "LK Practice";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSCameraUsageDescription = "LK Practice uses the camera only when a student records a private practice take.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "LK Practice uses the microphone only to include sound in a private practice recording.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -233,10 +243,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "LK Practice";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSCameraUsageDescription = "LK Practice uses the camera only when a student records a private practice take.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "LK Practice uses the microphone only to include sound in a private practice recording.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

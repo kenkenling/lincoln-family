@@ -179,6 +179,42 @@ struct PracticeEngineTests {
     }
 
     @Test
+    func recordingIsAttachedToActiveSessionAndCanBeReplaced() throws {
+        let date = try DateKey("2026-11-03")
+        let engine = makeEngine(date: date)
+        try engine.addAssignment(
+            makeAssignment(
+                id: "boreas",
+                profileID: "student-a",
+                start: date,
+                end: date,
+                modes: [.playAlong]
+            )
+        )
+        _ = try engine.startPractice(assignmentID: "boreas", mode: .playAlong)
+
+        let firstPrevious = try engine.attachRecording(
+            path: "lkpractice-recording://takes/student-a/session/first.mov"
+        )
+        let secondPrevious = try engine.attachRecording(
+            path: "lkpractice-recording://takes/student-a/session/second.mov"
+        )
+
+        #expect(firstPrevious == nil)
+        #expect(secondPrevious == "lkpractice-recording://takes/student-a/session/first.mov")
+        #expect(
+            engine.activeSession?.recordingPath ==
+                "lkpractice-recording://takes/student-a/session/second.mov"
+        )
+        let snapshot = try engine.snapshot(for: "student-a")
+        #expect(
+            snapshot.events.filter {
+                $0.message == "Saved a private practice recording"
+            }.count == 2
+        )
+    }
+
+    @Test
     func weeklyPracticeReturnsSevenGentlePatternDays() throws {
         let date = try DateKey("2026-11-03")
         let engine = makeEngine(date: date)

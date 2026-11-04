@@ -25,13 +25,13 @@ struct PrivacyPolicySection: Identifiable {
 }
 
 enum ApplePrivacyPolicy {
-    static let version = "2026-11-04-v2"
+    static let version = "2026-11-04-v3"
 
     static let sections = [
         PrivacyPolicySection(
             id: "local-data",
             title: "Data stays on this device",
-            body: "LK Practice stores student profiles, assignments, practice progress, reflections, reference-video files, and sheet music in the app’s private storage. This Apple version has no LK Practice account or cloud synchronization."
+            body: "LK Practice stores student profiles, assignments, practice progress, reflections, private practice recordings, reference-video files, and sheet music in the app’s private storage. This Apple version has no LK Practice account or cloud synchronization."
         ),
         PrivacyPolicySection(
             id: "no-tracking",
@@ -45,8 +45,8 @@ enum ApplePrivacyPolicy {
         ),
         PrivacyPolicySection(
             id: "media",
-            title: "Reference media and sheet music",
-            body: "Files selected by the family are copied into private app storage. A parent can remove an attachment or erase all app data. Files are shared only when a parent deliberately uses a system share action."
+            title: "Practice recordings and assigned media",
+            body: "Camera and microphone access are requested only when the student opens a recording-enabled practice step. Recorded takes and files selected by the family are kept in private app storage. A parent can review a saved take, remove related family data, or erase all app data. Files leave the app only when a parent deliberately uses a system share action."
         ),
         PrivacyPolicySection(
             id: "youtube",
@@ -56,7 +56,7 @@ enum ApplePrivacyPolicy {
         PrivacyPolicySection(
             id: "delete",
             title: "Delete all data",
-            body: "A parent can erase consent, profiles, assignments, practice history, local settings, and app-managed files from Parent Space."
+            body: "A parent can erase consent, profiles, assignments, practice history, local settings, app-managed recordings, and attachments from Parent Space."
         ),
     ]
 }

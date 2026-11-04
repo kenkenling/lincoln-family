@@ -140,13 +140,15 @@ final class AppModel: ObservableObject {
     private let pinStore: ParentPINStore
     private let archiveStore: LocalPracticeArchiveStore
     private let mediaStore: LocalMediaStore
+    private let recordingStore: LocalRecordingStore
     private var persistenceTask: Task<Void, Never>?
 
     init(
         consentStore: PrivacyConsentStore = PrivacyConsentStore(),
         pinStore: ParentPINStore = ParentPINStore(),
         archiveStore: LocalPracticeArchiveStore? = nil,
-        mediaStore: LocalMediaStore? = nil
+        mediaStore: LocalMediaStore? = nil,
+        recordingStore: LocalRecordingStore? = nil
     ) {
         self.consentStore = consentStore
         self.pinStore = pinStore
@@ -154,6 +156,7 @@ final class AppModel: ObservableObject {
             fileURL: Self.defaultArchiveURL
         )
         self.mediaStore = mediaStore ?? LocalMediaStore()
+        self.recordingStore = recordingStore ?? LocalRecordingStore()
         let accepted = consentStore.hasAcceptedCurrentPolicy
         consentAccepted = accepted
         isLoading = accepted
@@ -329,6 +332,7 @@ final class AppModel: ObservableObject {
     func deleteProfile(_ profileID: String) {
         do {
             try engine?.deleteProfile(profileID)
+            recordingStore.deleteProfile(profileID)
             refreshAndPersist(immediately: true)
             cleanupUnreferencedMedia()
         } catch {
@@ -366,6 +370,65 @@ final class AppModel: ObservableObject {
 
     func localMediaExists(for reference: String?) -> Bool {
         mediaStore.fileExists(for: reference)
+    }
+
+    func makeRecordingDestination() -> RecordingDestination? {
+        guard
+            let profile = activeProfile,
+            let assignment = activeAssignment,
+            let session = activeSession
+        else {
+            errorMessage = "Start a practice session before recording a take."
+            return nil
+        }
+
+        do {
+            return try recordingStore.makeDestination(
+                profileID: profile.id,
+                assignmentTitle: assignment.title,
+                date: session.date,
+                sessionID: session.id
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func recordingSaved(_ destination: RecordingDestination) {
+        do {
+            try recordingStore.finalize(destination)
+            guard let engine else {
+                recordingStore.delete(destination.reference)
+                return
+            }
+            let previousReference = try engine.attachRecording(
+                path: destination.reference
+            )
+            if previousReference != destination.reference {
+                recordingStore.delete(previousReference)
+            }
+            refreshAndPersist(immediately: true)
+        } catch {
+            recordingStore.delete(destination.reference)
+            errorMessage = "The practice take could not be saved: \(error.localizedDescription)"
+        }
+    }
+
+    func recordingFailed(_ destination: RecordingDestination) {
+        recordingStore.delete(destination.reference)
+    }
+
+    func recordingURL(for reference: String?) -> URL? {
+        recordingStore.url(for: reference)
+    }
+
+    func recordingDisplayName(for reference: String?) -> String {
+        recordingStore.displayName(for: reference) ?? "Practice take"
+    }
+
+    func recordingExists(for reference: String?) -> Bool {
+        recordingStore.fileExists(for: reference)
     }
 
     func cleanupUnreferencedMedia() {
@@ -612,6 +675,7 @@ final class AppModel: ObservableObject {
         do {
             try await archiveStore.delete()
             try await mediaStore.deleteAll()
+            recordingStore.deleteAll()
             consentStore.deleteAll()
             try pinStore.delete()
             engine = nil
@@ -654,6 +718,7 @@ final class AppModel: ObservableObject {
             )
         }
         try? await mediaStore.prune(keeping: managedMediaReferences())
+        recordingStore.prune(keeping: managedRecordingReferences())
         isLoading = false
         stateRevision += 1
     }
@@ -711,6 +776,17 @@ final class AppModel: ObservableObject {
             }
         }
         return references
+    }
+
+    private func managedRecordingReferences() -> Set<String> {
+        guard let engine else {
+            return []
+        }
+        return Set(
+            engine.snapshotsByProfileID.values.flatMap { snapshot in
+                snapshot.sessions.compactMap(\.recordingPath)
+            }
+        )
     }
 
     private static var defaultArchiveURL: URL {

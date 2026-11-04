@@ -27,12 +27,14 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.lkeducation.lkpractice
         PRODUCT_NAME: LK Practice
         MARKETING_VERSION: 1.0.0
-        CURRENT_PROJECT_VERSION: 2
+        CURRENT_PROJECT_VERSION: 3
         SWIFT_VERSION: 6.0
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: LK Practice
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+        INFOPLIST_KEY_NSCameraUsageDescription: LK Practice uses the camera only when a student records a private practice take.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: LK Practice uses the microphone only to include sound in a private practice recording.
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait

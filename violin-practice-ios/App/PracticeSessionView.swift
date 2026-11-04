@@ -3,7 +3,10 @@ import SwiftUI
 
 struct PracticeSessionView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showingSheetMusic = false
+    @StateObject private var recorder = StudentCameraRecorder()
 
     var body: some View {
         ZStack {
@@ -37,6 +40,27 @@ struct PracticeSessionView: View {
                     displayName: model.localMediaDisplayName(for: reference)
                 )
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, selectedMode != .listen {
+                Task {
+                    await recorder.prepare()
+                }
+            } else if phase != .active {
+                recorder.stopCaptureSession()
+            }
+        }
+        .onChange(of: selectedMode) { _, mode in
+            if mode == .listen {
+                recorder.stopCaptureSession()
+            } else if scenePhase == .active {
+                Task {
+                    await recorder.prepare()
+                }
+            }
+        }
+        .onDisappear {
+            recorder.stopCaptureSession()
         }
     }
 
@@ -87,6 +111,8 @@ struct PracticeSessionView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .disabled(recorder.isBusy)
+                        .opacity(recorder.isBusy ? 0.58 : 1)
                         .accessibilityLabel(
                             "\(mode.kidTitle)\(model.engine?.selectedMode == mode ? ", selected" : "")"
                         )
@@ -100,16 +126,69 @@ struct PracticeSessionView: View {
 
     @ViewBuilder
     private func practicePanel(_ assignment: Assignment) -> some View {
-        if selectedMode != .playSolo, assignment.sourceType != .none {
-            ReferenceVideoPanel(
-                sourceType: assignment.sourceType,
-                referenceURL: assignment.referenceURL,
-                startSeconds: assignment.referenceStartSeconds,
-                localFileURL: model.localMediaURL(for: assignment.referenceURL)
+        switch selectedMode {
+        case .listen:
+            if assignment.sourceType != .none {
+                ReferenceVideoPanel(
+                    sourceType: assignment.sourceType,
+                    referenceURL: assignment.referenceURL,
+                    startSeconds: assignment.referenceStartSeconds,
+                    localFileURL: model.localMediaURL(for: assignment.referenceURL)
+                )
+            } else {
+                instructionPanel(assignment)
+            }
+        case .playAlong:
+            playAlongPanel(assignment)
+        case .playSolo:
+            studentCameraPanel(startLabel: "Record My Take")
+        }
+    }
+
+    @ViewBuilder
+    private func playAlongPanel(_ assignment: Assignment) -> some View {
+        if horizontalSizeClass == .regular {
+            HStack(alignment: .top, spacing: 14) {
+                ReferenceVideoPanel(
+                    sourceType: assignment.sourceType,
+                    referenceURL: assignment.referenceURL,
+                    startSeconds: assignment.referenceStartSeconds,
+                    localFileURL: model.localMediaURL(for: assignment.referenceURL)
+                )
+                .frame(maxWidth: .infinity)
+
+                studentCameraPanel(startLabel: "Record While I Play")
+                    .frame(maxWidth: .infinity)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(
+                "Play along with the teacher reference and the student camera side by side."
             )
         } else {
-            instructionPanel(assignment)
+            VStack(spacing: 14) {
+                ReferenceVideoPanel(
+                    sourceType: assignment.sourceType,
+                    referenceURL: assignment.referenceURL,
+                    startSeconds: assignment.referenceStartSeconds,
+                    localFileURL: model.localMediaURL(for: assignment.referenceURL)
+                )
+                studentCameraPanel(startLabel: "Record While I Play")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(
+                "Play along with the teacher reference above the student camera."
+            )
         }
+    }
+
+    private func studentCameraPanel(startLabel: String) -> some View {
+        StudentCameraPanel(
+            recorder: recorder,
+            startLabel: startLabel,
+            destinationProvider: model.makeRecordingDestination,
+            onSaved: model.recordingSaved,
+            onFailed: model.recordingFailed
+        )
     }
 
     private func instructionPanel(_ assignment: Assignment) -> some View {
@@ -217,6 +296,8 @@ struct PracticeSessionView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SkyButtonStyle())
+                .disabled(recorder.isBusy)
+                .opacity(recorder.isBusy ? 0.55 : 1)
 
                 Button {
                     model.finishPractice()
@@ -225,6 +306,15 @@ struct PracticeSessionView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SkyButtonStyle())
+                .disabled(recorder.isBusy)
+                .opacity(recorder.isBusy ? 0.55 : 1)
+            }
+
+            if recorder.isBusy {
+                Text("Stop and save the recording before pausing or finishing practice.")
+                    .font(.caption)
+                    .foregroundStyle(LKColor.muted)
+                    .multilineTextAlignment(.center)
             }
         }
         .padding(.bottom, 14)

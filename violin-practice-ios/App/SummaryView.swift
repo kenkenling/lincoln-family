@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SummaryView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var selectedRecording: RecordingReview?
 
     var body: some View {
         List {
@@ -19,7 +20,19 @@ struct SummaryView: View {
                     )
                 } else {
                     ForEach(model.sessions) { session in
-                        PracticeSessionSummaryRow(session: session)
+                        PracticeSessionSummaryRow(
+                            session: session,
+                            onOpenRecording: { reference in
+                                guard let fileURL = model.recordingURL(for: reference) else {
+                                    return
+                                }
+                                selectedRecording = RecordingReview(
+                                    reference: reference,
+                                    fileURL: fileURL,
+                                    displayName: model.recordingDisplayName(for: reference)
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -44,6 +57,12 @@ struct SummaryView: View {
             }
         }
         .navigationTitle("Summary")
+        .fullScreenCover(item: $selectedRecording) { recording in
+            PracticeRecordingViewer(
+                fileURL: recording.fileURL,
+                displayName: recording.displayName
+            )
+        }
     }
 
     private func shortTimestamp(_ millis: Int64) -> String {
@@ -88,6 +107,7 @@ private struct WeeklySummaryRow: View {
 private struct PracticeSessionSummaryRow: View {
     @EnvironmentObject private var model: AppModel
     let session: PracticeSession
+    let onOpenRecording: (String) -> Void
 
     private var assignmentTitle: String {
         model.allAssignments.first { $0.id == session.assignmentID }?.title ??
@@ -145,8 +165,37 @@ private struct PracticeSessionSummaryRow: View {
                 }
             }
             .font(.caption)
+
+            if let recordingPath = session.recordingPath {
+                if model.recordingExists(for: recordingPath) {
+                    Button {
+                        onOpenRecording(recordingPath)
+                    } label: {
+                        Label("Watch Student Take", systemImage: "play.rectangle.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityHint("Opens the private video recorded during this session.")
+                } else {
+                    Label(
+                        "Student take is unavailable on this device.",
+                        systemImage: "video.slash.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(LKColor.muted)
+                }
+            }
         }
         .padding(.vertical, 5)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct RecordingReview: Identifiable {
+    let reference: String
+    let fileURL: URL
+    let displayName: String
+
+    var id: String {
+        reference
     }
 }

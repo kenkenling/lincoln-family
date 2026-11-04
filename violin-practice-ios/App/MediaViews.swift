@@ -89,6 +89,147 @@ struct ReferenceVideoPanel: View {
     }
 }
 
+struct StudentCameraPanel: View {
+    @ObservedObject var recorder: StudentCameraRecorder
+    let startLabel: String
+    let destinationProvider: () -> RecordingDestination?
+    let onSaved: (RecordingDestination) -> Void
+    let onFailed: (RecordingDestination) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            cameraSurface
+                .frame(maxWidth: .infinity)
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            HStack {
+                Label("Student camera", systemImage: "video.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(LKColor.ink)
+                Spacer()
+                if recorder.isRecording {
+                    Label("REC", systemImage: "record.circle.fill")
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(LKColor.danger)
+                }
+            }
+
+            Text(recorder.statusMessage)
+                .font(.caption)
+                .foregroundStyle(LKColor.muted)
+                .accessibilityAddTraits(.updatesFrequently)
+
+            actionButton
+        }
+        .padding(12)
+        .cloudCard()
+        .task {
+            await recorder.prepare()
+        }
+    }
+
+    @ViewBuilder
+    private var cameraSurface: some View {
+        ZStack {
+            Color.black
+
+            if recorder.isReady {
+                StudentCameraPreview(
+                    session: recorder.captureSession,
+                    isMirrored: recorder.previewShouldMirror
+                )
+                    .accessibilityLabel("Live student camera preview")
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: recorder.cameraPermissionDenied
+                        ? "video.slash.fill"
+                        : "video.fill")
+                        .font(.largeTitle)
+                    Text(recorder.statusMessage)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                }
+                .foregroundStyle(.white)
+                .padding(20)
+            }
+
+            if recorder.countdown > 0 {
+                Text("\(recorder.countdown)")
+                    .font(.system(size: 74, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(radius: 8)
+                    .accessibilityLabel("Recording starts in \(recorder.countdown)")
+            }
+
+            if recorder.isRecording {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 11, height: 11)
+                    Text("RECORDING")
+                        .font(.caption2.weight(.black))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.black.opacity(0.68), in: Capsule())
+                .padding(10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionButton: some View {
+        if recorder.cameraPermissionDenied {
+            Button {
+                guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
+                    return
+                }
+                UIApplication.shared.open(settingsURL)
+            } label: {
+                Label("Open Camera Settings", systemImage: "gear")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SkyButtonStyle())
+        } else if recorder.isBusy {
+            Button {
+                recorder.stopRecording()
+            } label: {
+                Label(
+                    recorder.countdown > 0 ? "Cancel" : "Stop & Save",
+                    systemImage: "stop.circle.fill"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SunnyButtonStyle())
+        } else {
+            Button {
+                guard let destination = destinationProvider() else {
+                    return
+                }
+                recorder.beginRecording(
+                    destination: destination,
+                    skipCountdown: reduceMotion,
+                    onSaved: onSaved,
+                    onFailed: onFailed
+                )
+            } label: {
+                Label(startLabel, systemImage: "record.circle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SunnyButtonStyle())
+            .disabled(!recorder.isReady || recorder.isPreparing)
+            .opacity(recorder.isReady && !recorder.isPreparing ? 1 : 0.55)
+        }
+    }
+}
+
 private struct LocalReferenceVideoPlayer: View {
     let startSeconds: Int
     @State private var player: AVPlayer
@@ -176,6 +317,54 @@ private struct YouTubeWebPlayer: UIViewRepresentable {
 
     final class Coordinator {
         var loadedKey: String?
+    }
+}
+
+struct PracticeRecordingViewer: View {
+    @Environment(\.dismiss) private var dismiss
+    let fileURL: URL
+    let displayName: String
+    @State private var player: AVPlayer
+
+    init(fileURL: URL, displayName: String) {
+        self.fileURL = fileURL
+        self.displayName = displayName
+        _player = State(initialValue: AVPlayer(url: fileURL))
+    }
+
+    var body: some View {
+        NavigationStack {
+            VideoPlayer(player: player)
+                .background(Color.black)
+                .navigationTitle("Practice Take")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Done") {
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ShareLink(item: fileURL) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+                .safeAreaInset(edge: .bottom) {
+                    Text(displayName)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(10)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.black)
+                }
+                .onAppear {
+                    player.play()
+                }
+                .onDisappear {
+                    player.pause()
+                }
+        }
     }
 }
 

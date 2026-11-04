@@ -24,10 +24,12 @@ The local-practice foundation is implemented:
 - YouTube and app-managed local reference-video playback
 - PDF and image sheet-music import, preview, sharing, and zoomable viewing
 - Private attachment copies with validation, size limits, and orphan cleanup
+- Live student camera in Play Along and Play Solo
+- Private camera/microphone practice takes with countdown, playback, and sharing
 - Universal iPhone/iPad project configuration and LK branding
 
-Camera recording, workbook import/export, and cloud synchronization remain
-deferred to later milestones.
+Workbook import/export and cloud synchronization remain deferred to later
+milestones.
 
 ## Current development environment
 
