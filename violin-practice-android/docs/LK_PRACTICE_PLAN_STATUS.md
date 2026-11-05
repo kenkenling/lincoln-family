@@ -1,7 +1,7 @@
 # LK Practice plan status
 
-Date: November 1, 2026
-Current local release: `0.11.0` (`versionCode 16`)
+Date: November 5, 2026
+Current local release: `1.0.0-beta.1` (`versionCode 17`)
 
 This file maps the ordered tickets in `LK_Practice_Plan.docx` to the verified
 family-only Android implementation. “Deferred” means the work requires a

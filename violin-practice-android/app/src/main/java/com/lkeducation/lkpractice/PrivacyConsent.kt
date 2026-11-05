@@ -14,8 +14,8 @@ data class PrivacyPolicySection(
     val paragraphs: List<String>,
 )
 
-internal const val CURRENT_PRIVACY_POLICY_VERSION = 2
-internal const val PRIVACY_POLICY_LAST_UPDATED = "November 2, 2026"
+internal const val CURRENT_PRIVACY_POLICY_VERSION = 3
+internal const val PRIVACY_POLICY_LAST_UPDATED = "November 5, 2026"
 internal const val PRIVACY_CONSENT_PREFERENCES = "lk_practice_privacy_consent"
 
 internal val PRIVACY_POLICY_SECTIONS = listOf(
@@ -44,7 +44,7 @@ internal val PRIVACY_POLICY_SECTIONS = listOf(
         title = "Permissions and network use",
         paragraphs = listOf(
             "Camera and microphone access are requested only for recording a practice take. The Android file picker grants access only to the video, sheet music, workbook, or export destination a parent chooses. Selected sheet music is copied into LK Practice's private storage for reliable in-app viewing.",
-            "Internet access is used for an assigned YouTube reference video. The privacy-enhanced YouTube player may still send network and device information, such as an IP address and playback activity, to YouTube or Google when the reference player is opened or used.",
+            "Internet access is used for an assigned YouTube reference video. The embedded YouTube player may send network and device information, such as an IP address and playback activity, to YouTube or Google when the reference player is opened or used.",
             "The app does not request location, contacts, phone, SMS, or broad photo-library access.",
         ),
     ),

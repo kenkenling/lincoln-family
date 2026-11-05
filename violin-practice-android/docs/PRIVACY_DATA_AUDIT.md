@@ -1,6 +1,6 @@
 # LK Practice privacy and data audit
 
-Audit date: November 2, 2026
+Audit date: November 5, 2026
 
 Publisher: LK Education
 Application ID: `com.lkeducation.lkpractice`
@@ -24,11 +24,11 @@ Application ID: `com.lkeducation.lkpractice`
 | Profiles, assignments, progress, sessions, reflections | Private Room database | Parent setup and normal practice |
 | Parent PIN hash, file revisions, and migration flags | Private SharedPreferences | Parent setup and local file saves |
 | Practice videos | App-managed internal or app-specific external storage | Student or parent records a take |
-| Attached sheet music | App-managed private internal storage | Parent selects a supported PDF or image |
+| Attached sheet music | App-managed private internal storage under `files/Sheet Music/` | Parent selects a supported PDF or image |
 | Workbook URI and filename | Private Room database | Parent selects or creates a local workbook |
 | Excel workbook content | Parent-selected document provider | Parent explicitly saves or loads |
 | Exported ZIP/CSV/video | Parent-selected destination or Android Share target | Parent explicitly exports or shares |
-| YouTube network data | YouTube/Google privacy-enhanced embedded player | Assigned YouTube reference player is opened or used |
+| YouTube network data | YouTube/Google embedded player provided by `android-youtube-player` | Assigned YouTube reference player is opened or used |
 
 ## Manifest and dependency audit
 
@@ -36,8 +36,14 @@ Application ID: `com.lkeducation.lkpractice`
 - Camera and microphone permissions are requested at runtime only from the
   recording UI.
 - `INTERNET` is required only for assigned YouTube references. The app uses
-  `youtube-nocookie.com`, disables WebView cookies, requires a playback gesture,
-  blocks cleartext traffic, and disables WebView file/content access.
+  `android-youtube-player` core `13.0.0`, which owns its internal WebView and
+  packaged iframe integration. The exact packaged player HTML loads
+  `https://www.youtube.com/iframe_api`; the app therefore does not claim a
+  `youtube-nocookie.com` host or app-controlled cookie suppression.
+- LK Practice configures the player with autoplay off and exposes it only for an
+  assigned reference. The privacy policy discloses that opening or using the
+  player may send network, device, IP-address, and playback information to
+  YouTube or Google. Cleartext HTTP traffic remains blocked by the manifest.
 - No location, contacts, phone, SMS, broad photo-library, or advertising-ID
   permission is declared.
 - Room is used only for the app's private local database. No analytics,
@@ -48,6 +54,16 @@ Application ID: `com.lkeducation.lkpractice`
 - The `FileProvider` is not exported and grants URI access only when the app
   deliberately shares a managed recording or opens an attached sheet-music
   copy in another app.
+
+## Legacy recording directory
+
+The app intentionally retains the internal/app-specific directory name
+`Practice Partner` in `RecordingManager` and `file_paths.xml`. Existing
+installations may already have session records that point to videos under that
+directory. Renaming it without a transactional file-and-database migration
+would make those recordings unavailable. The legacy directory is not a
+user-facing product name; a future rename must migrate both internal and
+app-specific external recordings before updating stored paths.
 
 ## Deletion
 

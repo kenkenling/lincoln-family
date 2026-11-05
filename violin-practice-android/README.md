@@ -7,7 +7,7 @@ uses Android Share or exports a file.
 
 Primary message: **Practice Makes Progress.**
 
-## Version 0.11.0 workflow
+## Version 1.0.0-beta.1 workflow
 
 - **Choose profile:** the app opens to named child cards and a Parent Space card.
 - **Today:** a child enters a profile in one tap and sees the existing

@@ -1,6 +1,6 @@
 # Local Excel file setup
 
-LK Practice 0.11.0 keeps household profiles, practice history, sessions, and
+LK Practice 1.0.0-beta.1 keeps household profiles, practice history, sessions, and
 recordings local. Each child can optionally use a separate local Excel `.xlsx`
 file for assignments and readable snapshots.
 
